@@ -1,0 +1,43 @@
+{
+  "name": "@repograph/cli",
+  "version": "0.1.0",
+  "description": "RepoGraph CLI — scan any repo and generate an interactive dependency graph and MCP context file.",
+  "keywords": ["repograph", "dependency-graph", "mcp", "cli", "code-analysis", "ai-context"],
+  "repository": "github:lord-hamza/repograph",
+  "homepage": "https://github.com/lord-hamza/repograph#readme",
+  "bugs": "https://github.com/lord-hamza/repograph/issues",
+  "license": "MIT",
+  "type": "module",
+  "publishConfig": {
+    "access": "public"
+  },
+  "bin": {
+    "repograph": "./dist/index.js"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "dev": "tsc -p tsconfig.json --watch",
+    "lint": "eslint src --ext .ts",
+    "test": "echo \"(no tests yet)\" && exit 0",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "clean": "rm -rf dist .turbo *.tsbuildinfo",
+    "start": "node ./dist/index.js",
+    "prepublishOnly": "pnpm run clean && pnpm run build"
+  },
+  "dependencies": {
+    "@repograph/core": "workspace:*",
+    "chalk": "^5.6.2",
+    "cli-table3": "^0.6.5",
+    "commander": "^14.0.3",
+    "open": "^11.0.0",
+    "ora": "^9.4.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "typescript": "^5.7.0"
+  }
+}
