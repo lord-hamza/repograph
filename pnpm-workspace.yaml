@@ -1,0 +1,6 @@
+packages:
+  - "packages/*"
+  - "apps/*"
+allowBuilds:
+  tree-sitter: true
+  tree-sitter-python: true
