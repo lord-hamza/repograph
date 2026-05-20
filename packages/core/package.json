@@ -1,0 +1,45 @@
+{
+  "name": "@repograph/core",
+  "version": "0.1.0",
+  "description": "Core engine for RepoGraph — ingests repos, parses code, builds dependency graphs, detects tech stack, and exports JSON + MCP markdown.",
+  "keywords": ["repograph", "dependency-graph", "mcp", "code-analysis", "tree-sitter", "typescript", "python"],
+  "repository": "github:lord-hamza/repograph",
+  "homepage": "https://github.com/lord-hamza/repograph#readme",
+  "bugs": "https://github.com/lord-hamza/repograph/issues",
+  "license": "MIT",
+  "type": "module",
+  "publishConfig": {
+    "access": "public"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "dev": "tsc -p tsconfig.json --watch",
+    "lint": "eslint src --ext .ts",
+    "test": "echo \"(no tests yet)\" && exit 0",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "clean": "rm -rf dist .turbo *.tsbuildinfo",
+    "prepublishOnly": "pnpm run clean && pnpm run build"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "graphology-types": "^0.24.8"
+  },
+  "dependencies": {
+    "graphology": "^0.26.0",
+    "tree-sitter": "^0.25.0",
+    "tree-sitter-python": "^0.25.0",
+    "typescript": "^5.7.0"
+  }
+}

@@ -1,0 +1,23 @@
+src/
+tsconfig.json
+tsconfig.tsbuildinfo
+**/.tsbuildinfo
+.turbo/
+node_modules/
+pnpm-lock.yaml
+
+# tests
+**/*.test.ts
+**/*.spec.ts
+__tests__/
+__fixtures__/
+
+# dev / config
+.eslintrc.*
+.prettierrc*
+.editorconfig
+
+# OS / editor
+.DS_Store
+.vscode/
+.idea/
