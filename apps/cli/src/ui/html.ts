@@ -199,8 +199,7 @@ export function renderGraphHtml(graphJson: string, title: string): string {
 </div>
 <div id="tooltip"></div>
 
-<script src="https://cdn.jsdelivr.net/npm/three@0.158/build/three.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/3d-force-graph@1/dist/3d-force-graph.min.js"></script>
+<script src="https://unpkg.com/3d-force-graph@1.71.5/dist/3d-force-graph.min.js"></script>
 <script>
 const DATA = ${escapedJson};
 const meta = DATA.metadata || {};
@@ -337,12 +336,20 @@ for (const n of nodes) {
 const moduleDir = new Map();
 moduleList.forEach((m, i) => moduleDir.set(m, fibSphereDir(i, moduleList.length)));
 
+function pin(node, dx, dy, dz) {
+  // Pin both x/y/z and fx/fy/fz so the renderer has positions even if
+  // the force simulation never ticks.
+  node.x = node.fx = dx;
+  node.y = node.fy = dy;
+  node.z = node.fz = dz;
+}
+
 if (moduleList.length === 1) {
   // Single module: spread all nodes evenly over the whole sphere
   const all = nodesByModule.get(moduleList[0]);
   all.forEach((n, i) => {
     const d = fibSphereDir(i, all.length);
-    n.fx = d.x * SPHERE_R; n.fy = d.y * SPHERE_R; n.fz = d.z * SPHERE_R;
+    pin(n, d.x * SPHERE_R, d.y * SPHERE_R, d.z * SPHERE_R);
   });
 } else {
   // Multiple modules: pack each module's nodes into a small cap around its centroid
@@ -360,7 +367,7 @@ if (moduleList.length === 1) {
     const phi = Math.PI * (3 - Math.sqrt(5));
 
     if (mods.length === 1) {
-      mods[0].fx = c.x * SPHERE_R; mods[0].fy = c.y * SPHERE_R; mods[0].fz = c.z * SPHERE_R;
+      pin(mods[0], c.x * SPHERE_R, c.y * SPHERE_R, c.z * SPHERE_R);
       continue;
     }
 
@@ -373,9 +380,7 @@ if (moduleList.length === 1) {
       const dz = t1.z * Math.cos(a) * r + t2.z * Math.sin(a) * r;
       let px = c.x + dx, py = c.y + dy, pz = c.z + dz;
       const m = Math.sqrt(px * px + py * py + pz * pz) || 1;
-      node.fx = (px / m) * SPHERE_R;
-      node.fy = (py / m) * SPHERE_R;
-      node.fz = (pz / m) * SPHERE_R;
+      pin(node, (px / m) * SPHERE_R, (py / m) * SPHERE_R, (pz / m) * SPHERE_R);
     });
   }
 }
@@ -404,8 +409,6 @@ const Graph = ForceGraph3D({ controlType: 'orbit' })(document.getElementById('gr
   .linkDirectionalParticles((l) => (hl.links.has(l) ? 2 : 0))
   .linkDirectionalParticleSpeed(0.004)
   .linkDirectionalParticleColor((l) => (hl.out.has(l) ? '#6cd1a1' : '#ff8fa3'))
-  .cooldownTicks(0)
-  .warmupTicks(0)
   .enableNodeDrag(false)
   .onNodeHover((node) => {
     if (panelPinned) return;
@@ -421,41 +424,10 @@ const Graph = ForceGraph3D({ controlType: 'orbit' })(document.getElementById('gr
   })
   .onBackgroundClick(() => closePanel());
 
-// Kill any residual force pulls — positions are pinned, but the lib still
-// invokes them on the first tick.
-Graph.d3Force('link', null);
-Graph.d3Force('charge', null);
-Graph.d3Force('center', null);
-
-// ---------- Wireframe globe + atmosphere via Three ----------
-if (typeof THREE !== 'undefined') {
-  const scene = Graph.scene();
-
-  // Inner wireframe shell — the actual "globe" lines
-  const wireGeo = new THREE.SphereGeometry(SPHERE_R, 36, 24);
-  const wireMat = new THREE.MeshBasicMaterial({
-    color: 0x6a8db0, wireframe: true, transparent: true, opacity: 0.07, depthWrite: false,
-  });
-  scene.add(new THREE.Mesh(wireGeo, wireMat));
-
-  // Equator + prime meridian rings for a clearer "globe" silhouette
-  const ringGeo1 = new THREE.RingGeometry(SPHERE_R - 0.2, SPHERE_R + 0.2, 128);
-  const ringMat = new THREE.MeshBasicMaterial({
-    color: 0x7fa6cf, transparent: true, opacity: 0.18, side: THREE.DoubleSide, depthWrite: false,
-  });
-  const eq = new THREE.Mesh(ringGeo1, ringMat);
-  eq.rotation.x = Math.PI / 2;
-  scene.add(eq);
-  const pm = new THREE.Mesh(ringGeo1.clone(), ringMat);
-  scene.add(pm);
-
-  // Outer atmosphere glow (back-side rendered)
-  const atmosGeo = new THREE.SphereGeometry(SPHERE_R * 1.08, 36, 24);
-  const atmosMat = new THREE.MeshBasicMaterial({
-    color: 0x1a3458, transparent: true, opacity: 0.10, side: THREE.BackSide, depthWrite: false,
-  });
-  scene.add(new THREE.Mesh(atmosGeo, atmosMat));
-}
+// Soften the link force since intra-module distance is fixed by pinning anyway.
+// We don't null forces (some lib versions reject null); we just weaken them.
+try { Graph.d3Force('link').strength(0); } catch (e) {}
+try { Graph.d3Force('charge').strength(0); } catch (e) {}
 
 // ---------- Camera + auto-rotate via OrbitControls ----------
 Graph.cameraPosition({ x: 0, y: 0, z: SPHERE_R * 2.4 });
