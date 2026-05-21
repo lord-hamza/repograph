@@ -199,6 +199,7 @@ export function renderGraphHtml(graphJson: string, title: string): string {
 </div>
 <div id="tooltip"></div>
 
+<script src="https://cdn.jsdelivr.net/npm/three@0.158/build/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/3d-force-graph@1/dist/3d-force-graph.min.js"></script>
 <script>
 const DATA = ${escapedJson};
@@ -306,14 +307,87 @@ function applySearch(q) {
   refreshGraphColors();
 }
 
+// ---------- Pin every node to a position on a sphere surface ----------
+// The "globe" effect: each module gets a region on the sphere via Fibonacci
+// distribution; nodes within a module spread in a small spherical cap around
+// that region. All positions are fixed (fx/fy/fz) so the force sim is a no-op.
+const SPHERE_R = 220;
+
+function fibSphereDir(i, n) {
+  if (n <= 1) return { x: 0, y: 0, z: 1 };
+  const phi = Math.PI * (3 - Math.sqrt(5));
+  const y = 1 - (i / (n - 1)) * 2;
+  const r = Math.sqrt(Math.max(0, 1 - y * y));
+  const theta = phi * i;
+  return { x: Math.cos(theta) * r, y, z: Math.sin(theta) * r };
+}
+
+function cross(a, b) {
+  return { x: a.y * b.z - a.z * b.y, y: a.z * b.x - a.x * b.z, z: a.x * b.y - a.y * b.x };
+}
+function len3(v) { return Math.sqrt(v.x * v.x + v.y * v.y + v.z * v.z); }
+function norm3(v) { const m = len3(v) || 1; return { x: v.x / m, y: v.y / m, z: v.z / m }; }
+
+const nodesByModule = new Map();
+for (const n of nodes) {
+  (nodesByModule.get(n._mod) || nodesByModule.set(n._mod, []).get(n._mod)).push(n);
+}
+
+// Module centroids on the unit sphere
+const moduleDir = new Map();
+moduleList.forEach((m, i) => moduleDir.set(m, fibSphereDir(i, moduleList.length)));
+
+if (moduleList.length === 1) {
+  // Single module: spread all nodes evenly over the whole sphere
+  const all = nodesByModule.get(moduleList[0]);
+  all.forEach((n, i) => {
+    const d = fibSphereDir(i, all.length);
+    n.fx = d.x * SPHERE_R; n.fy = d.y * SPHERE_R; n.fz = d.z * SPHERE_R;
+  });
+} else {
+  // Multiple modules: pack each module's nodes into a small cap around its centroid
+  for (const [mod, mods] of nodesByModule.entries()) {
+    const c = moduleDir.get(mod);
+    if (!c || mods.length === 0) continue;
+
+    // Tangent basis at c
+    const up = Math.abs(c.y) < 0.9 ? { x: 0, y: 1, z: 0 } : { x: 1, y: 0, z: 0 };
+    const t1 = norm3(cross(up, c));
+    const t2 = norm3(cross(c, t1));
+
+    // Cap spread scales with cluster size, capped so clusters never touch
+    const spread = Math.min(0.55, 0.18 + 0.05 * Math.sqrt(mods.length));
+    const phi = Math.PI * (3 - Math.sqrt(5));
+
+    if (mods.length === 1) {
+      mods[0].fx = c.x * SPHERE_R; mods[0].fy = c.y * SPHERE_R; mods[0].fz = c.z * SPHERE_R;
+      continue;
+    }
+
+    mods.forEach((node, i) => {
+      const ratio = i / (mods.length - 1);
+      const r = Math.sqrt(ratio) * spread;
+      const a = i * phi;
+      const dx = t1.x * Math.cos(a) * r + t2.x * Math.sin(a) * r;
+      const dy = t1.y * Math.cos(a) * r + t2.y * Math.sin(a) * r;
+      const dz = t1.z * Math.cos(a) * r + t2.z * Math.sin(a) * r;
+      let px = c.x + dx, py = c.y + dy, pz = c.z + dz;
+      const m = Math.sqrt(px * px + py * py + pz * pz) || 1;
+      node.fx = (px / m) * SPHERE_R;
+      node.fy = (py / m) * SPHERE_R;
+      node.fz = (pz / m) * SPHERE_R;
+    });
+  }
+}
+
 // ---------- 3D graph ----------
 const Graph = ForceGraph3D({ controlType: 'orbit' })(document.getElementById('graph-canvas'))
-  .backgroundColor('#05080f')
+  .backgroundColor('#04070d')
   .graphData({ nodes, links })
   .nodeId('id')
   .nodeVal((n) => nodeSize(n))
   .nodeLabel(() => '')  // we use our own tooltip
-  .nodeOpacity(0.92)
+  .nodeOpacity(0.95)
   .nodeColor((n) => {
     if (searchHits && !searchHits.has(n.id)) return 'rgba(80,90,110,0.15)';
     if (hl.focus && !hl.nodes.has(n)) return 'rgba(80,90,110,0.18)';
@@ -322,14 +396,17 @@ const Graph = ForceGraph3D({ controlType: 'orbit' })(document.getElementById('gr
   .linkColor((l) => {
     if (hl.out.has(l)) return '#6cd1a1';
     if (hl.in.has(l)) return '#ff8fa3';
-    if (hl.focus && !hl.links.has(l)) return 'rgba(80,90,110,0.05)';
-    return 'rgba(140,160,200,0.18)';
+    if (hl.focus && !hl.links.has(l)) return 'rgba(80,90,110,0.04)';
+    return 'rgba(140,170,210,0.22)';
   })
-  .linkWidth((l) => (hl.links.has(l) ? 1.4 : 0.4))
+  .linkWidth((l) => (hl.links.has(l) ? 1.5 : 0.35))
   .linkOpacity(0.7)
   .linkDirectionalParticles((l) => (hl.links.has(l) ? 2 : 0))
   .linkDirectionalParticleSpeed(0.004)
   .linkDirectionalParticleColor((l) => (hl.out.has(l) ? '#6cd1a1' : '#ff8fa3'))
+  .cooldownTicks(0)
+  .warmupTicks(0)
+  .enableNodeDrag(false)
   .onNodeHover((node) => {
     if (panelPinned) return;
     setHighlight(node);
@@ -344,33 +421,56 @@ const Graph = ForceGraph3D({ controlType: 'orbit' })(document.getElementById('gr
   })
   .onBackgroundClick(() => closePanel());
 
-// Tune forces: tighter intra-module links, weaker cross-module
-Graph.d3Force('link').distance((l) => {
-  const sm = typeof l.source === 'object' ? l.source._mod : nodeById.get(l.source)?._mod;
-  const tm = typeof l.target === 'object' ? l.target._mod : nodeById.get(l.target)?._mod;
-  return sm === tm ? 20 : 80;
-}).strength((l) => {
-  const sm = typeof l.source === 'object' ? l.source._mod : nodeById.get(l.source)?._mod;
-  const tm = typeof l.target === 'object' ? l.target._mod : nodeById.get(l.target)?._mod;
-  return sm === tm ? 0.85 : 0.12;
-});
-Graph.d3Force('charge').strength(-65);
+// Kill any residual force pulls — positions are pinned, but the lib still
+// invokes them on the first tick.
+Graph.d3Force('link', null);
+Graph.d3Force('charge', null);
+Graph.d3Force('center', null);
 
-// Rotate camera slowly on first idle, then stop on first interaction
-let autoRotate = true;
-const initialCamera = { x: 0, y: 0, z: 380 };
-Graph.cameraPosition(initialCamera);
-let rotateAngle = 0;
-function rotate() {
-  if (!autoRotate) return;
-  rotateAngle += 0.0014;
-  const r = 380;
-  Graph.cameraPosition({ x: r * Math.sin(rotateAngle), y: 80 * Math.sin(rotateAngle * 0.6), z: r * Math.cos(rotateAngle) });
-  requestAnimationFrame(rotate);
+// ---------- Wireframe globe + atmosphere via Three ----------
+if (typeof THREE !== 'undefined') {
+  const scene = Graph.scene();
+
+  // Inner wireframe shell — the actual "globe" lines
+  const wireGeo = new THREE.SphereGeometry(SPHERE_R, 36, 24);
+  const wireMat = new THREE.MeshBasicMaterial({
+    color: 0x6a8db0, wireframe: true, transparent: true, opacity: 0.07, depthWrite: false,
+  });
+  scene.add(new THREE.Mesh(wireGeo, wireMat));
+
+  // Equator + prime meridian rings for a clearer "globe" silhouette
+  const ringGeo1 = new THREE.RingGeometry(SPHERE_R - 0.2, SPHERE_R + 0.2, 128);
+  const ringMat = new THREE.MeshBasicMaterial({
+    color: 0x7fa6cf, transparent: true, opacity: 0.18, side: THREE.DoubleSide, depthWrite: false,
+  });
+  const eq = new THREE.Mesh(ringGeo1, ringMat);
+  eq.rotation.x = Math.PI / 2;
+  scene.add(eq);
+  const pm = new THREE.Mesh(ringGeo1.clone(), ringMat);
+  scene.add(pm);
+
+  // Outer atmosphere glow (back-side rendered)
+  const atmosGeo = new THREE.SphereGeometry(SPHERE_R * 1.08, 36, 24);
+  const atmosMat = new THREE.MeshBasicMaterial({
+    color: 0x1a3458, transparent: true, opacity: 0.10, side: THREE.BackSide, depthWrite: false,
+  });
+  scene.add(new THREE.Mesh(atmosGeo, atmosMat));
 }
-requestAnimationFrame(rotate);
-function stopAutoRotate() { autoRotate = false; }
-['mousedown', 'wheel', 'touchstart'].forEach((ev) => document.getElementById('graph-canvas').addEventListener(ev, stopAutoRotate, { passive: true }));
+
+// ---------- Camera + auto-rotate via OrbitControls ----------
+Graph.cameraPosition({ x: 0, y: 0, z: SPHERE_R * 2.4 });
+const orbit = Graph.controls();
+if (orbit) {
+  orbit.autoRotate = true;
+  orbit.autoRotateSpeed = 0.45;
+  orbit.enableDamping = true;
+  orbit.dampingFactor = 0.08;
+  orbit.rotateSpeed = 0.6;
+}
+function stopAutoRotate() { if (orbit) orbit.autoRotate = false; }
+['mousedown', 'wheel', 'touchstart'].forEach((ev) =>
+  document.getElementById('graph-canvas').addEventListener(ev, stopAutoRotate, { passive: true })
+);
 
 // ---------- Tooltip ----------
 const tooltipEl = document.getElementById('tooltip');
