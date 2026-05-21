@@ -19,8 +19,7 @@ export function renderGraphHtml(graphJson: string, title: string): string {
     --fg: #e8eef8;
     --muted: #8896ac;
     --accent: #7cb9ff;
-    --edge: rgba(140, 160, 200, 0.22);
-    --edge-hi: #ffd866;
+    --edge: rgba(140, 160, 200, 0.20);
     --edge-out: #6cd1a1;
     --edge-in: #ff8fa3;
   }
@@ -35,7 +34,7 @@ export function renderGraphHtml(graphJson: string, title: string): string {
     font-size: 13px;
     overflow: hidden;
   }
-  #app { position: fixed; inset: 0; display: grid; grid-template-columns: 300px 1fr; }
+  #app { position: fixed; inset: 0; display: grid; grid-template-columns: 320px 1fr; }
   #sidebar {
     background: linear-gradient(180deg, var(--panel) 0%, var(--panel-2) 100%);
     border-right: 1px solid var(--border);
@@ -48,27 +47,32 @@ export function renderGraphHtml(graphJson: string, title: string): string {
   .stat:last-child { border-bottom: 0; }
   .stat .k { color: var(--muted); }
   .stat .v { font-variant-numeric: tabular-nums; font-weight: 500; }
-  .section-title { font-size: 10px; text-transform: uppercase; letter-spacing: 0.12em; color: var(--muted); margin: 18px 0 6px; }
+  .section-title { font-size: 10px; text-transform: uppercase; letter-spacing: 0.12em; color: var(--muted); margin: 18px 0 8px; }
   #search {
     width: 100%; box-sizing: border-box;
     background: #0a1224; color: var(--fg);
     border: 1px solid var(--border); border-radius: 8px;
-    padding: 9px 11px; margin: 6px 0 4px;
+    padding: 9px 11px; margin: 4px 0 4px;
     font: inherit;
     transition: border-color .12s;
   }
   #search:focus { outline: none; border-color: var(--accent); }
-  .legend-group { display: flex; flex-direction: column; gap: 4px; font-size: 11px; color: var(--muted); }
+  .legend-group { display: flex; flex-direction: column; gap: 5px; font-size: 11px; color: var(--muted); }
   .legend-row { display: flex; align-items: center; gap: 8px; }
   .swatch { width: 10px; height: 10px; border-radius: 50%; flex: 0 0 10px; }
-  .swatch.square { border-radius: 2px; }
-  .swatch.ring { background: transparent !important; border: 2px solid currentColor; }
-  .toggle { display: inline-flex; background: #0a1224; border: 1px solid var(--border); border-radius: 8px; padding: 2px; gap: 2px; margin-top: 4px; }
-  .toggle button {
-    background: transparent; border: 0; color: var(--muted); font: inherit;
-    padding: 5px 9px; border-radius: 6px; cursor: pointer; font-size: 11px;
+  .tech-row {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 5px 8px; border-radius: 6px; margin: 2px 0;
+    background: rgba(255,255,255,0.02);
+    border: 1px solid transparent;
+    font-size: 11.5px;
   }
-  .toggle button.active { background: var(--accent); color: #061224; font-weight: 600; }
+  .tech-row .name { color: var(--fg); font-weight: 500; }
+  .tech-row .meta { color: var(--muted); font-size: 10.5px; }
+  .tech-row .cat {
+    font-size: 9px; text-transform: uppercase; letter-spacing: 0.08em;
+    color: var(--muted); margin-right: 6px;
+  }
   #graph { background: transparent; cursor: grab; }
   #graph:active { cursor: grabbing; }
   #tooltip {
@@ -77,30 +81,36 @@ export function renderGraphHtml(graphJson: string, title: string): string {
     backdrop-filter: blur(8px);
     color: var(--fg);
     border: 1px solid var(--border); border-radius: 8px;
-    padding: 8px 12px; font-size: 12px;
+    padding: 9px 13px; font-size: 12px;
     opacity: 0; transition: opacity .12s;
-    max-width: 360px; word-break: break-all;
-    box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+    max-width: 380px;
+    box-shadow: 0 6px 24px rgba(0,0,0,0.5);
     z-index: 10;
+    line-height: 1.4;
   }
-  #tooltip .label { font-weight: 600; margin-bottom: 2px; }
-  #tooltip .meta { color: var(--muted); font-size: 11px; }
-  .node circle, .node rect { stroke-width: 1.4px; cursor: pointer; transition: opacity .15s, stroke-width .15s; }
-  .node.dim circle, .node.dim rect { opacity: 0.12; }
+  #tooltip .label { font-weight: 600; margin-bottom: 2px; word-break: break-all; }
+  #tooltip .path { color: var(--muted); font-size: 11px; word-break: break-all; }
+  #tooltip .desc {
+    margin-top: 6px; padding-top: 6px;
+    border-top: 1px solid var(--border);
+    color: var(--fg);
+  }
+  #tooltip .deg { color: var(--muted); font-size: 11px; margin-top: 3px; }
+  .node circle, .node rect { stroke-width: 1.4px; cursor: pointer; transition: opacity .18s, stroke-width .15s; }
+  .node.dim circle, .node.dim rect { opacity: 0.08; }
   .node.focus circle, .node.focus rect { stroke-width: 3px; }
-  .node.neighbor circle, .node.neighbor rect { stroke-width: 2px; }
+  .node.neighbor circle, .node.neighbor rect { stroke-width: 2px; opacity: 1 !important; }
   .node text {
-    fill: var(--fg); font-size: 10px; pointer-events: none;
-    text-shadow: 0 0 4px var(--bg), 0 0 4px var(--bg);
+    fill: var(--fg); font-size: 10.5px; pointer-events: none; font-weight: 500;
+    text-shadow: 0 0 6px var(--bg), 0 0 6px var(--bg), 0 0 6px var(--bg);
     opacity: 0; transition: opacity .15s;
   }
-  .node.label-visible text, .node.focus text, .node.neighbor text { opacity: 1; }
+  .node.focus text, .node.label-visible text { opacity: 1; }
   .link { stroke: var(--edge); stroke-width: 0.9px; transition: stroke .15s, stroke-width .15s, opacity .15s; }
-  .link.dim { opacity: 0.04; }
-  .link.hi-out { stroke: var(--edge-out); stroke-width: 1.6px; opacity: 0.95; }
-  .link.hi-in { stroke: var(--edge-in); stroke-width: 1.6px; opacity: 0.95; }
-  .footer-hint { color: var(--muted); font-size: 10px; line-height: 1.5; margin-top: 14px; }
-  kbd { background: #0a1224; border: 1px solid var(--border); border-radius: 4px; padding: 1px 5px; font-size: 10px; }
+  .link.dim { opacity: 0.03; }
+  .link.hi-out { stroke: var(--edge-out); stroke-width: 1.7px; opacity: 0.95; }
+  .link.hi-in { stroke: var(--edge-in); stroke-width: 1.7px; opacity: 0.95; }
+  .footer-hint { color: var(--muted); font-size: 10px; line-height: 1.55; margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--border); }
 </style>
 </head>
 <body>
@@ -113,27 +123,17 @@ export function renderGraphHtml(graphJson: string, title: string): string {
     <div class="section-title">Filter</div>
     <input id="search" placeholder="Filter by name or path…" autocomplete="off" />
 
-    <div class="section-title">Color by</div>
-    <div class="toggle" id="color-toggle">
-      <button data-mode="module" class="active">Module</button>
-      <button data-mode="type">Type</button>
-    </div>
-
-    <div class="section-title">Shape</div>
-    <div class="legend-group">
-      <div class="legend-row"><span class="swatch" style="background:#fff"></span>File (large)</div>
-      <div class="legend-row"><span class="swatch square" style="background:#fff"></span>Class</div>
-      <div class="legend-row"><span class="swatch" style="background:#fff;transform:scale(0.6)"></span>Function</div>
-    </div>
+    <div class="section-title">Tech Stack</div>
+    <div id="tech-stack"></div>
 
     <div class="section-title">Modules</div>
     <div class="legend-group" id="module-legend"></div>
 
     <div class="footer-hint">
-      <div>Hover a node to focus.</div>
-      <div>Click to pin · Click empty to clear.</div>
-      <div>Scroll to zoom · Drag to pan.</div>
-      <div><span style="color:var(--edge-out)">━</span> outgoing · <span style="color:var(--edge-in)">━</span> incoming</div>
+      <div><b>Hover</b> a node to focus its neighborhood.</div>
+      <div><b>Click</b> to pin · click empty to clear.</div>
+      <div><b>Scroll</b> to zoom · <b>drag</b> to pan.</div>
+      <div style="margin-top:6px;"><span style="color:var(--edge-out)">━</span> outgoing · <span style="color:var(--edge-in)">━</span> incoming</div>
     </div>
   </aside>
   <svg id="graph"></svg>
@@ -147,6 +147,8 @@ const tooltip = d3.select('#tooltip');
 const statsEl = document.getElementById('stats');
 
 const meta = DATA.metadata || {};
+const techStack = meta.techStack || [];
+
 const stats = [
   ['Files', meta.repo?.fileCount ?? '—'],
   ['Nodes', DATA.nodes.length],
@@ -157,62 +159,62 @@ const stats = [
 ];
 statsEl.innerHTML = stats.map(([k, v]) => '<div class="stat"><span class="k">' + k + '</span><span class="v">' + v + '</span></div>').join('');
 
-// ---------- Module detection (group nodes by top directory / workspace) ----------
+// ---------- Module key (group nodes by top directory / workspace) ----------
 function moduleKey(filePath) {
   if (!filePath) return '(root)';
   const parts = filePath.split('/');
   if (parts.length === 1) return '(root)';
-  // Detect monorepo: packages/<x>/... or apps/<x>/...
   if ((parts[0] === 'packages' || parts[0] === 'apps') && parts.length > 2) {
     return parts[0] + '/' + parts[1];
   }
   return parts[0];
 }
 
-const TYPE_COLORS = {
-  file: '#7cb9ff',
-  class: '#ffb86b',
-  function: '#a8e6a3',
-};
-const TYPE_DEFAULT = '#c792ea';
-
+// ---------- Color (multicolor by module) ----------
 const moduleSet = new Set(DATA.nodes.map((n) => moduleKey(n.filePath)));
 const moduleList = [...moduleSet].sort();
-const palette = d3.schemeTableau10.concat(d3.schemeSet3);
+const palette = d3.schemeTableau10.concat(d3.schemeSet3).concat(d3.schemePaired);
 const moduleColor = d3.scaleOrdinal().domain(moduleList).range(palette);
-
-let colorMode = 'module';
-function colorFor(n) {
-  if (colorMode === 'type') return TYPE_COLORS[n.type] || TYPE_DEFAULT;
-  return moduleColor(moduleKey(n.filePath));
-}
+function colorFor(n) { return moduleColor(moduleKey(n.filePath)); }
 
 function radiusFor(n) {
-  if (n.type === 'file') return 6 + Math.min(9, Math.log2(1 + (n.inDegree || 0)) * 1.7);
-  if (n.type === 'class') return 4.5;
-  return 3.2;
+  if (n.type === 'file') return 6 + Math.min(10, Math.log2(1 + (n.inDegree || 0)) * 2);
+  if (n.type === 'class') return 4;
+  return 3;
 }
 
-// ---------- SVG setup + zoom ----------
-const width = window.innerWidth - 300;
+// ---------- SVG + zoom ----------
+const width = window.innerWidth - 320;
 const height = window.innerHeight;
 svg.attr('viewBox', [0, 0, width, height]);
-
 const root = svg.append('g');
 const linkLayer = root.append('g').attr('class', 'links');
 const nodeLayer = root.append('g').attr('class', 'nodes');
+svg.call(d3.zoom().scaleExtent([0.08, 10]).on('zoom', (e) => root.attr('transform', e.transform)));
 
-svg.call(d3.zoom().scaleExtent([0.08, 8]).on('zoom', (e) => root.attr('transform', e.transform)));
-
-// ---------- Data ----------
+// ---------- Data + per-module centroids ----------
 const linkData = DATA.links.map((l) => ({ ...l }));
 const nodeData = DATA.nodes.map((n) => ({ ...n, _mod: moduleKey(n.filePath) }));
+
+const centroids = new Map();
+if (moduleList.length === 1) {
+  centroids.set(moduleList[0], { x: width / 2, y: height / 2 });
+} else {
+  const ringR = Math.min(width, height) * 0.32;
+  moduleList.forEach((m, i) => {
+    const theta = (i / moduleList.length) * Math.PI * 2 - Math.PI / 2;
+    centroids.set(m, {
+      x: width / 2 + ringR * Math.cos(theta),
+      y: height / 2 + ringR * Math.sin(theta),
+    });
+  });
+}
 
 const link = linkLayer.selectAll('line').data(linkData).join('line').attr('class', 'link');
 
 const node = nodeLayer.selectAll('g.node').data(nodeData).join('g').attr('class', 'node');
 
-// Mix shape: square for class, circle for file/function
+// Shapes: class = square (rounded), file/function = circle
 node.each(function (d) {
   const sel = d3.select(this);
   if (d.type === 'class') {
@@ -230,7 +232,12 @@ node.each(function (d) {
   }
 });
 
-node.append('text').attr('dx', 8).attr('dy', 3).text((d) => d.label || d.id);
+// Labels only for files (function/class labels would create the "mesh" on click)
+node.filter((d) => d.type === 'file')
+  .append('text')
+  .attr('dx', 9)
+  .attr('dy', 3.5)
+  .text((d) => d.label || d.id);
 
 // ---------- Drag ----------
 const drag = d3.drag()
@@ -239,19 +246,21 @@ const drag = d3.drag()
   .on('end', (e, d) => { if (!e.active) sim.alphaTarget(0); d.fx = null; d.fy = null; });
 node.call(drag);
 
-// ---------- Force simulation ----------
+// ---------- Cluster-aware force simulation ----------
+function modOf(end) {
+  if (typeof end === 'object') return end._mod;
+  const n = nodeData.find((x) => x.id === end);
+  return n ? n._mod : null;
+}
+
 const sim = d3.forceSimulation(nodeData)
-  .force('link', d3.forceLink(linkData).id((d) => d.id).distance((l) => {
-    // Pull intra-module nodes closer
-    const sm = typeof l.source === 'object' ? l.source._mod : moduleKey(nodeData.find((n) => n.id === l.source)?.filePath);
-    const tm = typeof l.target === 'object' ? l.target._mod : moduleKey(nodeData.find((n) => n.id === l.target)?.filePath);
-    return sm === tm ? 28 : 70;
-  }).strength(0.5))
-  .force('charge', d3.forceManyBody().strength(-110))
-  .force('center', d3.forceCenter(width / 2, height / 2))
-  .force('collide', d3.forceCollide().radius((d) => radiusFor(d) + 3))
-  .force('x', d3.forceX(width / 2).strength(0.03))
-  .force('y', d3.forceY(height / 2).strength(0.03))
+  .force('link', d3.forceLink(linkData).id((d) => d.id)
+    .distance((l) => modOf(l.source) === modOf(l.target) ? 20 : 95)
+    .strength((l) => modOf(l.source) === modOf(l.target) ? 0.75 : 0.12))
+  .force('charge', d3.forceManyBody().strength(-55))
+  .force('collide', d3.forceCollide().radius((d) => radiusFor(d) + 4).strength(1))
+  .force('cx', d3.forceX((d) => centroids.get(d._mod).x).strength(0.18))
+  .force('cy', d3.forceY((d) => centroids.get(d._mod).y).strength(0.18))
   .on('tick', () => {
     link.attr('x1', (d) => d.source.x).attr('y1', (d) => d.source.y)
         .attr('x2', (d) => d.target.x).attr('y2', (d) => d.target.y);
@@ -270,7 +279,6 @@ for (const l of linkData) {
 
 let pinnedId = null;
 let hoverId = null;
-
 function activeId() { return pinnedId || hoverId; }
 
 function applyFocus() {
@@ -301,17 +309,20 @@ node
     if (!pinnedId) applyFocus();
     const ins = (inAdj.get(d.id) || new Set()).size;
     const outs = (outAdj.get(d.id) || new Set()).size;
+    const desc = d.description ? '<div class="desc">' + d.description + '</div>' : '';
+    const path = d.filePath && d.filePath !== d.label ? '<div class="path">' + d.filePath + '</div>' : '';
     tooltip.style('opacity', 1)
       .html(
         '<div class="label">' + (d.label || d.id) + '</div>' +
-        '<div class="meta">' + d.type + (d.filePath ? ' · ' + d.filePath : '') + '</div>' +
-        '<div class="meta">↑ ' + ins + ' incoming · ↓ ' + outs + ' outgoing</div>'
+        path +
+        '<div class="deg">' + d.type + ' · ↑ ' + ins + ' incoming · ↓ ' + outs + ' outgoing</div>' +
+        desc
       );
   })
   .on('mousemove', (event) => {
     tooltip
-      .style('left', (event.clientX + 14) + 'px')
-      .style('top', (event.clientY + 14) + 'px');
+      .style('left', Math.min(event.clientX + 14, window.innerWidth - 400) + 'px')
+      .style('top', Math.min(event.clientY + 14, window.innerHeight - 160) + 'px');
   })
   .on('mouseleave', () => {
     hoverId = null;
@@ -324,30 +335,27 @@ node
     event.stopPropagation();
   });
 
-svg.on('click', () => {
-  pinnedId = null;
-  applyFocus();
-});
-
-// ---------- Color mode toggle ----------
-function recolor() {
-  node.selectAll('circle').attr('fill', (d) => colorFor(d));
-  node.selectAll('rect').attr('fill', (d) => colorFor(d));
-}
-document.querySelectorAll('#color-toggle button').forEach((btn) => {
-  btn.addEventListener('click', () => {
-    document.querySelectorAll('#color-toggle button').forEach((b) => b.classList.toggle('active', b === btn));
-    colorMode = btn.dataset.mode;
-    recolor();
-  });
-});
+svg.on('click', () => { pinnedId = null; applyFocus(); });
 
 // ---------- Module legend ----------
 const legendEl = document.getElementById('module-legend');
-legendEl.innerHTML = moduleList.map((m) => {
-  const c = moduleColor(m);
-  return '<div class="legend-row"><span class="swatch" style="background:' + c + '"></span>' + m + '</div>';
-}).join('');
+legendEl.innerHTML = moduleList.map((m) =>
+  '<div class="legend-row"><span class="swatch" style="background:' + moduleColor(m) + '"></span>' + m + '</div>'
+).join('');
+
+// ---------- Tech stack ----------
+const techEl = document.getElementById('tech-stack');
+if (techStack.length === 0) {
+  techEl.innerHTML = '<div class="legend-row" style="font-style:italic;">No tech detected</div>';
+} else {
+  techEl.innerHTML = techStack.slice(0, 14).map((t) => {
+    const v = t.version ? ' · v' + t.version.replace(/^[\\^~>=<]+/, '') : '';
+    return '<div class="tech-row">' +
+      '<span><span class="cat">' + t.category + '</span><span class="name">' + t.name + '</span></span>' +
+      '<span class="meta">' + t.fileCount + ' file' + (t.fileCount === 1 ? '' : 's') + v + '</span>' +
+    '</div>';
+  }).join('');
+}
 
 // ---------- Search ----------
 document.getElementById('search').addEventListener('input', (e) => {
@@ -363,7 +371,7 @@ document.getElementById('search').addEventListener('input', (e) => {
     (d.label || '').toLowerCase().includes(q) || (d.filePath || '').toLowerCase().includes(q)
   ).map((d) => d.id));
   node.classed('dim', (d) => !hits.has(d.id));
-  node.classed('label-visible', (d) => hits.has(d.id));
+  node.classed('label-visible', (d) => hits.has(d.id) && d.type === 'file');
   link.classed('dim', (l) => {
     const s = typeof l.source === 'object' ? l.source.id : l.source;
     const t = typeof l.target === 'object' ? l.target.id : l.target;
@@ -373,10 +381,22 @@ document.getElementById('search').addEventListener('input', (e) => {
 
 // ---------- Resize ----------
 window.addEventListener('resize', () => {
-  const w = window.innerWidth - 300;
+  const w = window.innerWidth - 320;
   const h = window.innerHeight;
   svg.attr('viewBox', [0, 0, w, h]);
-  sim.force('center', d3.forceCenter(w / 2, h / 2)).alpha(0.3).restart();
+  // Recompute centroids on resize
+  if (moduleList.length === 1) {
+    centroids.set(moduleList[0], { x: w / 2, y: h / 2 });
+  } else {
+    const ringR = Math.min(w, h) * 0.32;
+    moduleList.forEach((m, i) => {
+      const theta = (i / moduleList.length) * Math.PI * 2 - Math.PI / 2;
+      centroids.set(m, { x: w / 2 + ringR * Math.cos(theta), y: h / 2 + ringR * Math.sin(theta) });
+    });
+  }
+  sim.force('cx', d3.forceX((d) => centroids.get(d._mod).x).strength(0.18))
+     .force('cy', d3.forceY((d) => centroids.get(d._mod).y).strength(0.18))
+     .alpha(0.5).restart();
 });
 </script>
 </body>

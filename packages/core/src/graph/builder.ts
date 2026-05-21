@@ -1,6 +1,7 @@
 import { MultiDirectedGraph } from "graphology";
 import type { Language, RawFile } from "../ingestion/types.js";
 import type { ParsedFile } from "../parsers/types.js";
+import { describeClassNode, describeFile, describeFunctionNode } from "./describe.js";
 import { readTsconfigPaths, resolveImports } from "./resolver.js";
 import type {
   EdgeType,
@@ -137,6 +138,7 @@ export function buildGraph(
         lineEnd: fn.lineEnd,
         inDegree: 0,
         outDegree: 0,
+        description: describeFunctionNode(fn.name, fn.lineStart),
       };
       graph.addNode(id, n);
       graph.addDirectedEdgeWithKey(`contains:${node.id}->${id}`, node.id, id, {
@@ -161,6 +163,7 @@ export function buildGraph(
         lineEnd: cls.lineEnd,
         inDegree: 0,
         outDegree: 0,
+        description: describeClassNode(cls.name, cls.lineStart, cls.extends, cls.methods.length),
       };
       graph.addNode(id, n);
       graph.addDirectedEdgeWithKey(`contains:${node.id}->${id}`, node.id, id, {
@@ -255,10 +258,26 @@ export function buildGraph(
   const nodes: GraphNode[] = [];
   const edges: GraphEdge[] = [];
 
+  const parsedByPath = new Map(parsedFiles.map((f) => [f.path, f]));
+
   for (const nodeId of graph.nodes()) {
     const attrs = graph.getNodeAttributes(nodeId) as GraphNode;
     attrs.inDegree = graph.inDegree(nodeId);
     attrs.outDegree = graph.outDegree(nodeId);
+
+    if (attrs.type === "file") {
+      const parsed = parsedByPath.get(attrs.filePath);
+      const raw = rawByPath.get(attrs.filePath);
+      if (parsed) {
+        attrs.description = describeFile({
+          parsed,
+          raw,
+          inDegree: attrs.inDegree,
+          outDegree: attrs.outDegree,
+        });
+      }
+    }
+
     nodes.push(attrs);
   }
   for (const edgeKey of graph.edges()) {

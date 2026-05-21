@@ -8,6 +8,7 @@ export type {
   RepoMetadata,
 } from "./types.js";
 export { buildGraph, type BuildOptions } from "./builder.js";
+export { describeFile, describeFunctionNode, describeClassNode } from "./describe.js";
 export {
   readTsconfigPaths,
   resolveImports,

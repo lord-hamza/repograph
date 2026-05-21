@@ -14,6 +14,7 @@ export interface GraphNode {
   lineEnd?: number;
   inDegree: number;
   outDegree: number;
+  description?: string;
 }
 
 export interface GraphEdge {

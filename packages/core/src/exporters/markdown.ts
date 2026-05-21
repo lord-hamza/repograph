@@ -120,6 +120,7 @@ function moduleMap(graph: RepoGraph): string {
     blocks.push(
       [
         `### \`${label}\` — ${filesInGroup.length} files`,
+        `- _${summarizeGroup(filesInGroup)}_`,
         importedFromGroups.size > 0
           ? `- Imports from: ${[...importedFromGroups].sort().map((d) => `\`${d === "(root)" ? "(root)" : `${d}/`}\``).join(", ")}`
           : "- Imports from: _none_",
@@ -130,6 +131,20 @@ function moduleMap(graph: RepoGraph): string {
     );
   }
   return blocks.join("\n\n");
+}
+
+function summarizeGroup(files: GraphNode[]): string {
+  if (files.length === 0) return "Empty";
+  const buckets = new Map<string, number>();
+  for (const f of files) {
+    const d = f.description ?? "Other";
+    const key = d.split(" — ")[0]?.split(" · ")[0]?.split(" (")[0] ?? d;
+    buckets.set(key, (buckets.get(key) ?? 0) + 1);
+  }
+  const sorted = [...buckets.entries()].sort((a, b) => b[1] - a[1]);
+  const top = sorted.slice(0, 3).map(([kind, n]) => `${kind} ×${n}`);
+  const rest = sorted.length > 3 ? `, +${sorted.length - 3} more` : "";
+  return top.join(", ") + rest;
 }
 
 function techStackTable(techStack: TechStackEntry[]): string {
@@ -148,7 +163,10 @@ function criticalFiles(graph: RepoGraph): string {
   const top = fileNodes.slice(0, 10);
   if (top.length === 0) return "_no files have inbound import edges_";
   return top
-    .map((n, i) => `${i + 1}. \`${n.filePath}\` — imported by ${n.inDegree} file(s)`)
+    .map((n, i) => {
+      const line = `${i + 1}. \`${n.filePath}\` — imported by ${n.inDegree} file(s)`;
+      return n.description ? `${line}\n   _${n.description}_` : line;
+    })
     .join("\n");
 }
 
@@ -168,7 +186,12 @@ function entryPointsSection(graph: RepoGraph): string {
   const nodeById = new Map(graph.nodes.map((n) => [n.id, n]));
   return graph.entryPoints
     .slice(0, 20)
-    .map((id) => `- \`${nodeById.get(id)?.filePath ?? id}\``)
+    .map((id) => {
+      const node = nodeById.get(id);
+      const path = node?.filePath ?? id;
+      const line = `- \`${path}\``;
+      return node?.description ? `${line} — _${node.description}_` : line;
+    })
     .join("\n");
 }
 

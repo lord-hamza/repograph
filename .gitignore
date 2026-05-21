@@ -44,4 +44,5 @@ pnpm-debug.log*
 
 # RepoGraph outputs (generated artifacts)
 repograph-graph.html
+repograph-graph.json
 repograph-context.md
