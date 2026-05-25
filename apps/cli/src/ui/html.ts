@@ -72,6 +72,7 @@ export function renderGraphHtml(graphJson: string, title: string): string {
   #graph-canvas canvas:active { cursor: grabbing; }
   #graph-2d {
     position: absolute; inset: 0; display: none;
+    width: 100%; height: 100%;
     cursor: grab; user-select: none;
   }
   #graph-2d.panning { cursor: grabbing; }
@@ -217,7 +218,7 @@ export function renderGraphHtml(graphJson: string, title: string): string {
       <button data-view="flat"><span class="ic flat"></span>2D Map</button>
     </div>
     <div id="graph-canvas"></div>
-    <svg id="graph-2d" xmlns="http://www.w3.org/2000/svg"><g id="zoom-group"><g id="links-2d"></g><g id="nodes-2d"></g></g></svg>
+    <svg id="graph-2d" xmlns="http://www.w3.org/2000/svg" width="100%" height="100%"><g id="zoom-group"><g id="links-2d"></g><g id="nodes-2d"></g></g></svg>
     <div id="err"></div>
   </div>
 
@@ -914,8 +915,21 @@ svg2dEl.addEventListener('wheel', (e) => {
   updateTransform2D();
 }, { passive: false });
 
+// Measure SVG box and recenter — called after the SVG is shown so layout is final
+function measure2D() {
+  const rect = svg2dEl.getBoundingClientRect();
+  if (rect.width > 0 && rect.height > 0) {
+    svgCenterX = rect.width / 2;
+    svgCenterY = rect.height / 2;
+  } else {
+    svgCenterX = (window.innerWidth - 320) / 2;
+    svgCenterY = window.innerHeight / 2;
+  }
+}
+
 // Reset view when entering 2D mode
 function resetView2D() {
+  measure2D();
   zoom2D = 1; panX2D = 0; panY2D = 0;
   updateTransform2D();
 }
@@ -1068,7 +1082,8 @@ window.addEventListener('resize', () => {
   camera.aspect = w / h;
   camera.updateProjectionMatrix();
   renderer.setSize(w, h);
-  svgCenterX = w / 2; svgCenterY = h / 2;
+  if (viewMode === 'flat') measure2D();
+  else { svgCenterX = w / 2; svgCenterY = h / 2; }
   updateTransform2D();
 });
 
