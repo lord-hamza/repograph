@@ -65,11 +65,17 @@ export function renderGraphHtml(graphJson: string, title: string): string {
   .tech-row .cat { font-size: 9px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); margin-right: 6px; }
   .footer-hint { color: var(--muted); font-size: 10px; line-height: 1.55; margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--border); }
 
-  /* ---------------- 3D viewport ---------------- */
+  /* ---------------- Viewport ---------------- */
   #graph { position: relative; }
   #graph-canvas { position: absolute; inset: 0; }
   #graph-canvas canvas { display: block; cursor: grab; }
   #graph-canvas canvas:active { cursor: grabbing; }
+  #graph-2d {
+    position: absolute; inset: 0; display: none;
+    cursor: grab; user-select: none;
+  }
+  #graph-2d.panning { cursor: grabbing; }
+  #graph-2d circle.node-2d { cursor: pointer; }
   #err {
     position: absolute; inset: 0;
     display: none; padding: 30px;
@@ -77,6 +83,35 @@ export function renderGraphHtml(graphJson: string, title: string): string {
     font-size: 12px; white-space: pre-wrap; word-break: break-word;
     background: rgba(20,10,15,0.85); overflow: auto;
   }
+
+  /* ---------------- View toggle (top-center of graph area) ---------------- */
+  #view-toggle {
+    position: absolute; top: 14px; left: 50%; transform: translateX(-50%);
+    background: rgba(14, 20, 34, 0.92);
+    border: 1px solid var(--border); border-radius: 999px;
+    padding: 4px; display: flex; gap: 2px;
+    backdrop-filter: blur(8px);
+    box-shadow: 0 6px 22px rgba(0, 0, 0, 0.45);
+    z-index: 25;
+  }
+  #view-toggle button {
+    background: transparent; border: 0; color: var(--muted);
+    font: inherit; font-size: 11.5px;
+    padding: 6px 14px; border-radius: 999px;
+    cursor: pointer; transition: background .12s, color .12s;
+    display: flex; align-items: center; gap: 7px;
+  }
+  #view-toggle button:hover { color: var(--fg); }
+  #view-toggle button.active {
+    background: var(--accent); color: #061224; font-weight: 600;
+  }
+  #view-toggle button.active:hover { color: #061224; }
+  #view-toggle .ic {
+    display: inline-block; width: 11px; height: 11px;
+    border: 1.5px solid currentColor; box-sizing: border-box;
+  }
+  #view-toggle .ic.globe { border-radius: 50%; }
+  #view-toggle .ic.flat { border-radius: 1px; }
 
   /* ---------------- Floating tooltip ---------------- */
   #tooltip {
@@ -177,7 +212,12 @@ export function renderGraphHtml(graphJson: string, title: string): string {
   </aside>
 
   <div id="graph">
+    <div id="view-toggle">
+      <button data-view="globe" class="active"><span class="ic globe"></span>3D Globe</button>
+      <button data-view="flat"><span class="ic flat"></span>2D Map</button>
+    </div>
     <div id="graph-canvas"></div>
+    <svg id="graph-2d" xmlns="http://www.w3.org/2000/svg"><g id="zoom-group"><g id="links-2d"></g><g id="nodes-2d"></g></g></svg>
     <div id="err"></div>
   </div>
 
@@ -228,6 +268,8 @@ window.addEventListener('error', (e) => {
 const DATA = ${escapedJson};
 const meta = DATA.metadata || {};
 const techStack = meta.techStack || [];
+
+let viewMode = 'globe'; // 'globe' | 'flat'
 
 // =====================================================================
 //   Data prep
@@ -488,7 +530,7 @@ function applySearch(q) {
   applyHighlight();
 }
 
-function applyHighlight() {
+function applyHighlight3D() {
   for (const mesh of nodeMeshes.values()) {
     const node = mesh.userData.node;
     let dim = false;
@@ -519,6 +561,16 @@ function applyHighlight() {
       line.material.opacity = 0.20;
     }
   }
+}
+
+// applyHighlight2D + the 2D render setup are defined further down. We
+// declare the function name here so applyHighlight() below can call it
+// before the 2D block executes.
+let applyHighlight2D = () => {};
+
+function applyHighlight() {
+  applyHighlight3D();
+  applyHighlight2D();
 }
 
 // =====================================================================
@@ -558,6 +610,14 @@ function flyToNode(node) {
     else flyAnim = null;
   }
   step();
+}
+
+// panTo2D is defined in the 2D block below — declare for early binding.
+let panToNode2D = () => {};
+
+function focusNode(node) {
+  if (viewMode === 'globe') flyToNode(node);
+  else panToNode2D(node);
 }
 
 // =====================================================================
@@ -601,7 +661,7 @@ renderer.domElement.addEventListener('click', (e) => {
   const mesh = pickNode();
   if (mesh) {
     openPanel(mesh.userData.node);
-    flyToNode(mesh.userData.node);
+    focusNode(mesh.userData.node);
   } else {
     closePanel();
   }
@@ -692,7 +752,7 @@ function renderConnectedList(elId, items, dirClass) {
     });
     li.addEventListener('click', () => {
       openPanel(n);
-      flyToNode(n);
+      focusNode(n);
     });
   });
 }
@@ -707,6 +767,290 @@ function closePanel() {
 document.getElementById('panel-close').addEventListener('click', closePanel);
 
 document.getElementById('search').addEventListener('input', (e) => applySearch(e.target.value.trim()));
+
+// =====================================================================
+//   2D layout (SVG renderer — alternate view)
+// =====================================================================
+const RING_R_2D = 280;
+const positions2D = new Map();
+
+function nodeSize2D(n) {
+  if (n.type === 'file') return 4 + Math.min(7, Math.log2(1 + (n.inDegree || 0)) * 1.6);
+  if (n.type === 'class') return 2.6;
+  return 2.2;
+}
+
+function compute2DPositions() {
+  positions2D.clear();
+  if (moduleList.length === 1) {
+    const all = nodesByModule.get(moduleList[0]);
+    const innerR = Math.min(220, 30 + Math.sqrt(all.length) * 18);
+    const phi = Math.PI * (3 - Math.sqrt(5));
+    all.forEach((n, i) => {
+      const ratio = all.length <= 1 ? 0 : i / (all.length - 1);
+      const r = Math.sqrt(ratio) * innerR;
+      const theta = i * phi;
+      positions2D.set(n.id, { x: r * Math.cos(theta), y: r * Math.sin(theta) });
+    });
+    return;
+  }
+  moduleList.forEach((mod, mi) => {
+    const angle = (mi / moduleList.length) * Math.PI * 2 - Math.PI / 2;
+    const cx = RING_R_2D * Math.cos(angle);
+    const cy = RING_R_2D * Math.sin(angle);
+    const mods = nodesByModule.get(mod);
+    if (!mods || mods.length === 0) return;
+    if (mods.length === 1) {
+      positions2D.set(mods[0].id, { x: cx, y: cy });
+      return;
+    }
+    const moduleR = Math.min(130, 22 + Math.sqrt(mods.length) * 14);
+    const phi = Math.PI * (3 - Math.sqrt(5));
+    mods.forEach((n, i) => {
+      const ratio = i / (mods.length - 1);
+      const r = Math.sqrt(ratio) * moduleR;
+      const theta = i * phi;
+      positions2D.set(n.id, { x: cx + r * Math.cos(theta), y: cy + r * Math.sin(theta) });
+    });
+  });
+}
+compute2DPositions();
+
+// ---------- SVG render ----------
+const svg2dEl = document.getElementById('graph-2d');
+const zoomGroupEl = document.getElementById('zoom-group');
+const linksLayer2D = document.getElementById('links-2d');
+const nodesLayer2D = document.getElementById('nodes-2d');
+const SVG_NS = 'http://www.w3.org/2000/svg';
+
+const nodeCircles2D = new Map();
+const lineEls2D = new Map();
+
+function build2D() {
+  // Lines first (behind nodes)
+  const lineFrag = document.createDocumentFragment();
+  for (const link of links) {
+    const sId = typeof link.source === 'object' ? link.source.id : link.source;
+    const tId = typeof link.target === 'object' ? link.target.id : link.target;
+    const s = positions2D.get(sId);
+    const t = positions2D.get(tId);
+    if (!s || !t) continue;
+    const ln = document.createElementNS(SVG_NS, 'line');
+    ln.setAttribute('x1', String(s.x));
+    ln.setAttribute('y1', String(s.y));
+    ln.setAttribute('x2', String(t.x));
+    ln.setAttribute('y2', String(t.y));
+    ln.setAttribute('stroke', 'rgba(140,170,210,0.22)');
+    ln.setAttribute('stroke-width', '0.7');
+    lineFrag.appendChild(ln);
+    lineEls2D.set(link, ln);
+  }
+  linksLayer2D.appendChild(lineFrag);
+
+  // Nodes on top
+  const nodeFrag = document.createDocumentFragment();
+  for (const n of nodes) {
+    const p = positions2D.get(n.id);
+    if (!p) continue;
+    const c = document.createElementNS(SVG_NS, 'circle');
+    c.setAttribute('class', 'node-2d');
+    c.setAttribute('cx', String(p.x));
+    c.setAttribute('cy', String(p.y));
+    c.setAttribute('r', String(nodeSize2D(n)));
+    c.setAttribute('fill', colorFor(n));
+    c.setAttribute('stroke', '#0a0e17');
+    c.setAttribute('stroke-width', '1');
+    c.setAttribute('data-node-id', n.id);
+    nodeFrag.appendChild(c);
+    nodeCircles2D.set(n.id, c);
+  }
+  nodesLayer2D.appendChild(nodeFrag);
+}
+build2D();
+
+// ---------- Pan + zoom on the SVG ----------
+let zoom2D = 1;
+let panX2D = 0, panY2D = 0;
+let svgCenterX = w / 2;
+let svgCenterY = h / 2;
+
+function updateTransform2D() {
+  zoomGroupEl.setAttribute('transform',
+    'translate(' + (svgCenterX + panX2D) + ',' + (svgCenterY + panY2D) + ') scale(' + zoom2D + ')');
+}
+updateTransform2D();
+
+let dragging2D = false;
+let dragStart = null;
+svg2dEl.addEventListener('mousedown', (e) => {
+  if (e.target && e.target.classList && e.target.classList.contains('node-2d')) return;
+  dragging2D = true;
+  svg2dEl.classList.add('panning');
+  dragStart = { x: e.clientX, y: e.clientY, px: panX2D, py: panY2D };
+});
+window.addEventListener('mousemove', (e) => {
+  if (!dragging2D || !dragStart) return;
+  panX2D = dragStart.px + (e.clientX - dragStart.x);
+  panY2D = dragStart.py + (e.clientY - dragStart.y);
+  updateTransform2D();
+});
+window.addEventListener('mouseup', () => {
+  if (!dragging2D) return;
+  dragging2D = false;
+  svg2dEl.classList.remove('panning');
+});
+
+svg2dEl.addEventListener('wheel', (e) => {
+  e.preventDefault();
+  const rect = svg2dEl.getBoundingClientRect();
+  const mx = e.clientX - rect.left - svgCenterX - panX2D;
+  const my = e.clientY - rect.top - svgCenterY - panY2D;
+  const factor = Math.exp(-e.deltaY * 0.0015);
+  const newZoom = Math.max(0.25, Math.min(6, zoom2D * factor));
+  const ratio = newZoom / zoom2D;
+  panX2D -= mx * (ratio - 1);
+  panY2D -= my * (ratio - 1);
+  zoom2D = newZoom;
+  updateTransform2D();
+}, { passive: false });
+
+// Reset view when entering 2D mode
+function resetView2D() {
+  zoom2D = 1; panX2D = 0; panY2D = 0;
+  updateTransform2D();
+}
+
+// ---------- 2D hover/click ----------
+nodesLayer2D.addEventListener('mouseover', (e) => {
+  const t = e.target;
+  if (!(t instanceof SVGCircleElement)) return;
+  const id = t.getAttribute('data-node-id');
+  const node = nodeById.get(id);
+  if (!node) return;
+  if (!panelPinned) {
+    setHighlight(node);
+    applyHighlight();
+    showTooltipForNode(node);
+  }
+});
+nodesLayer2D.addEventListener('mouseout', (e) => {
+  const t = e.target;
+  if (!(t instanceof SVGCircleElement)) return;
+  if (!panelPinned) {
+    setHighlight(null);
+    applyHighlight();
+    hideTooltip();
+  }
+});
+nodesLayer2D.addEventListener('click', (e) => {
+  const t = e.target;
+  if (!(t instanceof SVGCircleElement)) return;
+  const id = t.getAttribute('data-node-id');
+  const node = nodeById.get(id);
+  if (!node) return;
+  openPanel(node);
+  focusNode(node);
+  e.stopPropagation();
+});
+svg2dEl.addEventListener('click', (e) => {
+  // background click → close panel
+  if (e.target === svg2dEl || e.target === zoomGroupEl || e.target === linksLayer2D || e.target === nodesLayer2D) {
+    closePanel();
+  }
+});
+
+// ---------- 2D pan-to-node (focusNode delegates here in flat mode) ----------
+let panAnim = null;
+panToNode2D = function (node) {
+  const p = positions2D.get(node.id);
+  if (!p) return;
+  const targetPx = -p.x * zoom2D;
+  const targetPy = -p.y * zoom2D;
+  const startPx = panX2D, startPy = panY2D;
+  const t0 = performance.now();
+  const DUR = 550;
+  if (panAnim) cancelAnimationFrame(panAnim);
+  function step() {
+    const tt = Math.min(1, (performance.now() - t0) / DUR);
+    const ee = 1 - Math.pow(1 - tt, 3);
+    panX2D = startPx + (targetPx - startPx) * ee;
+    panY2D = startPy + (targetPy - startPy) * ee;
+    updateTransform2D();
+    if (tt < 1) panAnim = requestAnimationFrame(step);
+    else panAnim = null;
+  }
+  step();
+};
+
+// ---------- 2D highlight (overrides the early-bound stub) ----------
+applyHighlight2D = function () {
+  for (const [id, c] of nodeCircles2D.entries()) {
+    const node = nodeById.get(id);
+    if (!node) continue;
+    let dim = false;
+    if (searchHits && !searchHits.has(node.id)) dim = true;
+    if (hl.focus && !hl.nodes.has(node)) dim = true;
+    if (dim) {
+      c.setAttribute('fill', '#404a5c');
+      c.setAttribute('fill-opacity', '0.18');
+      c.setAttribute('stroke-opacity', '0.4');
+    } else {
+      c.setAttribute('fill', colorFor(node));
+      c.setAttribute('fill-opacity', '1');
+      c.setAttribute('stroke-opacity', '1');
+      // Scale focused node visually via stroke
+      if (node === hl.focus) {
+        c.setAttribute('stroke', '#ffd866');
+        c.setAttribute('stroke-width', '2.2');
+      } else {
+        c.setAttribute('stroke', '#0a0e17');
+        c.setAttribute('stroke-width', '1');
+      }
+    }
+  }
+  for (const [link, line] of lineEls2D.entries()) {
+    if (hl.out.has(link)) {
+      line.setAttribute('stroke', '#6cd1a1');
+      line.setAttribute('stroke-opacity', '0.95');
+      line.setAttribute('stroke-width', '1.6');
+    } else if (hl.in.has(link)) {
+      line.setAttribute('stroke', '#ff8fa3');
+      line.setAttribute('stroke-opacity', '0.95');
+      line.setAttribute('stroke-width', '1.6');
+    } else if (hl.focus && !hl.links.has(link)) {
+      line.setAttribute('stroke', 'rgba(64,74,92,0.06)');
+      line.setAttribute('stroke-width', '0.5');
+    } else {
+      line.setAttribute('stroke', 'rgba(140,170,210,0.22)');
+      line.setAttribute('stroke-width', '0.7');
+    }
+  }
+};
+
+// =====================================================================
+//   View toggle (3D Globe / 2D Map)
+// =====================================================================
+function setViewMode(mode) {
+  if (mode === viewMode) return;
+  viewMode = mode;
+  document.querySelectorAll('#view-toggle button').forEach((btn) => {
+    btn.classList.toggle('active', btn.getAttribute('data-view') === mode);
+  });
+  if (mode === 'globe') {
+    container.style.display = '';
+    svg2dEl.style.display = 'none';
+  } else {
+    container.style.display = 'none';
+    svg2dEl.style.display = 'block';
+    resetView2D();
+  }
+  applyHighlight();
+  // If a node is pinned, re-focus it in the new view
+  if (panelPinned && hl.focus) focusNode(hl.focus);
+}
+document.querySelectorAll('#view-toggle button').forEach((btn) => {
+  btn.addEventListener('click', () => setViewMode(btn.getAttribute('data-view')));
+});
 
 // =====================================================================
 //   Animation loop + resize
@@ -724,6 +1068,8 @@ window.addEventListener('resize', () => {
   camera.aspect = w / h;
   camera.updateProjectionMatrix();
   renderer.setSize(w, h);
+  svgCenterX = w / 2; svgCenterY = h / 2;
+  updateTransform2D();
 });
 
 // =====================================================================
