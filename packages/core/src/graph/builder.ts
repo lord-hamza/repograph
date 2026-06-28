@@ -41,60 +41,77 @@ function emptyLanguageStats(): LanguageStats {
   return { python: 0, javascript: 0, typescript: 0, unknown: 0 };
 }
 
-interface CycleDetectionState {
-  index: number;
-  stack: string[];
-  onStack: Set<string>;
-  indices: Map<string, number>;
-  lowlinks: Map<string, number>;
-  sccs: string[][];
+interface TarjanFrame {
+  v: string;
+  neighbors: string[];
+  i: number;
 }
 
+/**
+ * Tarjan's strongly-connected-components, implemented ITERATIVELY with an
+ * explicit work stack. A recursive version overflows the call stack on a
+ * pathological repo with a very deep linear import chain (a hostile-input DoS);
+ * the iterative form has no recursion-depth limit.
+ */
 function findCycles(adj: Map<string, Set<string>>): string[][] {
-  const state: CycleDetectionState = {
-    index: 0,
-    stack: [],
-    onStack: new Set(),
-    indices: new Map(),
-    lowlinks: new Map(),
-    sccs: [],
-  };
+  let index = 0;
+  const indices = new Map<string, number>();
+  const lowlinks = new Map<string, number>();
+  const onStack = new Set<string>();
+  const tarjanStack: string[] = [];
+  const sccs: string[][] = [];
 
-  const strongconnect = (v: string): void => {
-    state.indices.set(v, state.index);
-    state.lowlinks.set(v, state.index);
-    state.index++;
-    state.stack.push(v);
-    state.onStack.add(v);
+  for (const start of adj.keys()) {
+    if (indices.has(start)) continue;
+    const work: TarjanFrame[] = [{ v: start, neighbors: [...(adj.get(start) ?? [])], i: 0 }];
 
-    const neighbors = adj.get(v) ?? new Set<string>();
-    for (const w of neighbors) {
-      if (!state.indices.has(w)) {
-        strongconnect(w);
-        state.lowlinks.set(v, Math.min(state.lowlinks.get(v)!, state.lowlinks.get(w)!));
-      } else if (state.onStack.has(w)) {
-        state.lowlinks.set(v, Math.min(state.lowlinks.get(v)!, state.indices.get(w)!));
+    while (work.length > 0) {
+      const frame = work[work.length - 1]!;
+      const v = frame.v;
+
+      if (frame.i === 0) {
+        indices.set(v, index);
+        lowlinks.set(v, index);
+        index++;
+        tarjanStack.push(v);
+        onStack.add(v);
+      }
+
+      let recursed = false;
+      while (frame.i < frame.neighbors.length) {
+        const w = frame.neighbors[frame.i]!;
+        frame.i++;
+        if (!indices.has(w)) {
+          work.push({ v: w, neighbors: [...(adj.get(w) ?? [])], i: 0 });
+          recursed = true;
+          break;
+        } else if (onStack.has(w)) {
+          lowlinks.set(v, Math.min(lowlinks.get(v)!, indices.get(w)!));
+        }
+      }
+      if (recursed) continue;
+
+      if (lowlinks.get(v) === indices.get(v)) {
+        const component: string[] = [];
+        while (true) {
+          const w = tarjanStack.pop()!;
+          onStack.delete(w);
+          component.push(w);
+          if (w === v) break;
+        }
+        if (component.length > 1 || adj.get(component[0]!)?.has(component[0]!)) {
+          sccs.push(component);
+        }
+      }
+
+      work.pop();
+      if (work.length > 0) {
+        const parent = work[work.length - 1]!.v;
+        lowlinks.set(parent, Math.min(lowlinks.get(parent)!, lowlinks.get(v)!));
       }
     }
-
-    if (state.lowlinks.get(v) === state.indices.get(v)) {
-      const component: string[] = [];
-      while (true) {
-        const w = state.stack.pop()!;
-        state.onStack.delete(w);
-        component.push(w);
-        if (w === v) break;
-      }
-      if (component.length > 1 || adj.get(component[0]!)?.has(component[0]!)) {
-        state.sccs.push(component);
-      }
-    }
-  };
-
-  for (const v of adj.keys()) {
-    if (!state.indices.has(v)) strongconnect(v);
   }
-  return state.sccs;
+  return sccs;
 }
 
 export function buildGraph(
@@ -206,7 +223,7 @@ export function buildGraph(
   const tsconfig = readTsconfigPaths(rawFiles);
   const resolveCtx = tsconfig ? { fileSet, tsconfig } : { fileSet };
 
-  const externalImports: Record<string, string[]> = {};
+  const externalImports: Record<string, string[]> = Object.create(null);
   const importAdj = new Map<string, Set<string>>();
   let edgeCounter = 0;
 
@@ -285,19 +302,20 @@ export function buildGraph(
   }
 
   const fileNodes = nodes.filter((n) => n.type === "file");
+  // Precompute import endpoints once (O(edges)) — avoids an O(files × edges)
+  // scan that would hang on large repos.
+  const importTargets = new Set<string>();
+  const importSources = new Set<string>();
+  for (const e of edges) {
+    if (e.type !== "import") continue;
+    importTargets.add(e.target);
+    importSources.add(e.source);
+  }
   const entryPoints = fileNodes
-    .filter((n) => {
-      const imports = edges.some((e) => e.type === "import" && e.target === n.id);
-      const exports = edges.some((e) => e.type === "import" && e.source === n.id);
-      return !imports && exports;
-    })
+    .filter((n) => !importTargets.has(n.id) && importSources.has(n.id))
     .map((n) => n.id);
-
   const orphanFiles = fileNodes
-    .filter((n) => {
-      const imports = edges.some((e) => e.type === "import" && (e.source === n.id || e.target === n.id));
-      return !imports;
-    })
+    .filter((n) => !importTargets.has(n.id) && !importSources.has(n.id))
     .map((n) => n.id);
 
   const cycles = findCycles(importAdj);

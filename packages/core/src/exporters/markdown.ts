@@ -109,7 +109,9 @@ function languageBreakdown(stats: RepoGraph["languageStats"]): string {
 }
 
 function buildDirectoryTree(files: GraphNode[]): string {
-  const tree: Record<string, unknown> = {};
+  // null-prototype nodes so a path segment named "__proto__"/"constructor"
+  // is stored as a plain key and cannot pollute the prototype chain.
+  const tree: Record<string, unknown> = Object.create(null);
   for (const node of files) {
     const parts = node.filePath.split("/");
     let cursor = tree;
@@ -119,7 +121,7 @@ function buildDirectoryTree(files: GraphNode[]): string {
       if (isLeaf) {
         cursor[segment] = null;
       } else {
-        if (!(segment in cursor) || cursor[segment] === null) cursor[segment] = {};
+        if (!(segment in cursor) || cursor[segment] === null) cursor[segment] = Object.create(null);
         cursor = cursor[segment] as Record<string, unknown>;
       }
     }

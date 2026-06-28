@@ -228,3 +228,56 @@ describe("client app edge cases", () => {
     expect(document.getElementById("tech-stack")!.textContent).toContain("No tech detected");
   });
 });
+
+describe("security", () => {
+  it("emits a Content-Security-Policy with a nonce shared by both inline scripts", () => {
+    const html = renderGraphHtml(JSON.stringify(FIXTURE), "demo");
+    const cspNonce = /Content-Security-Policy[^>]*'nonce-([^']+)'/.exec(html)?.[1];
+    expect(cspNonce).toBeTruthy();
+    const scriptNonces = [...html.matchAll(/<script type="(?:importmap|module)" nonce="([^"]+)"/g)].map((m) => m[1]);
+    expect(scriptNonces.length).toBe(2);
+    expect(new Set([...scriptNonces, cspNonce]).size).toBe(1); // all identical
+    expect(html).toContain("default-src 'none'");
+    expect(html).toContain("connect-src 'none'");
+  });
+
+  it("uses a fresh nonce on each render (not a constant)", () => {
+    const n = (h: string) => /'nonce-([^']+)'/.exec(h)?.[1];
+    expect(n(renderGraphHtml("{}", "a"))).not.toBe(n(renderGraphHtml("{}", "a")));
+  });
+
+  it("HTML-escapes a malicious package.json version (no XSS via tech stack)", () => {
+    const evil = JSON.parse(JSON.stringify(FIXTURE));
+    evil.metadata.techStack = [
+      { name: "Evil", category: "framework", confidence: 0.9, fileCount: 1, files: [], interactsWith: [], version: '1.0.0"><img src=x onerror=alert(1)>' },
+    ];
+    const { errors } = boot(evil);
+    const techHtml = document.getElementById("tech-stack")!.innerHTML;
+    expect(errors).toEqual([]);
+    expect(techHtml).not.toContain("<img src=x onerror");
+    expect(techHtml).toContain("&lt;img");
+  });
+
+  it("does not render javascript: roadmap doc links", () => {
+    const evil = JSON.parse(JSON.stringify(FIXTURE));
+    evil.metadata.roadmap.stages[0].skills[0].doc = "javascript:alert(document.cookie)";
+    boot(evil);
+    clickView("roadmap");
+    const rmHtml = document.getElementById("roadmap-view")!.innerHTML;
+    expect(rmHtml).not.toContain("javascript:");
+  });
+
+  it("pins Three.js with Subresource Integrity in the import map", () => {
+    const html = renderGraphHtml(JSON.stringify(FIXTURE), "demo");
+    expect(html).toContain('"integrity"');
+    expect(html).toMatch(/three@0\.160\.0\/build\/three\.module\.js":\s*"sha384-/);
+    expect(html).toMatch(/OrbitControls\.js":\s*"sha384-/);
+  });
+
+  it("neutralizes a </script> breakout in node data", () => {
+    const evil = JSON.parse(JSON.stringify(FIXTURE));
+    evil.nodes[0].description = "</script><script>window.__pwned=1</script>";
+    const html = renderGraphHtml(JSON.stringify(evil), "x");
+    expect(html).not.toMatch(/<\/script><script>window\.__pwned/);
+  });
+});

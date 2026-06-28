@@ -107,6 +107,8 @@ pnpm --filter @repograph/cli  publish --access public --no-git-checks
 
 `prepublishOnly` runs a clean build before each publish. (Drop `--no-git-checks` if you want pnpm to require a clean, tagged git state.)
 
+**Supply-chain provenance (recommended):** publish from a GitHub Actions workflow with `npm publish --provenance` (and `id-token: write` permission). npm then records a signed, verifiable link between the package and the exact commit/CI run it was built from, which users can check with `npm audit signatures`.
+
 > Bumping versions: edit the `version` field in each package's `package.json` (e.g. `0.2.0`) before publishing, or use `pnpm --filter <pkg> version patch|minor|major`. npm refuses to republish an existing version.
 
 ### Verify the published package

@@ -123,4 +123,19 @@ describe("buildGraph", () => {
     expect(g.edges).toEqual([]);
     expect(g.circularDependencies).toEqual([]);
   });
+
+  it("survives a pathologically deep import chain without a stack overflow (iterative Tarjan)", () => {
+    // A recursive Tarjan overflows the stack around ~4.4k deep; go well past it.
+    const N = 8000;
+    const parsed: ParsedFile[] = [];
+    const raws: RawFile[] = [];
+    for (let i = 0; i < N; i++) {
+      const next = i < N - 1 ? [imp("./f" + (i + 1))] : [];
+      parsed.push(pf("f" + i + ".ts", { imports: next }));
+      raws.push(rf("f" + i + ".ts", "x"));
+    }
+    const g = buildGraph(parsed, raws, { metadata: { source: "local", target: "/tmp/deep" } });
+    expect(g.nodes.length).toBe(N);
+    expect(g.circularDependencies).toEqual([]); // linear chain → no cycles
+  });
 });

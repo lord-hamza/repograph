@@ -8,12 +8,26 @@ interface ParsedRepo {
   repo: string;
 }
 
+// GitHub login: alphanumerics + single hyphens, ≤39 chars.
+const OWNER_RE = /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})$/;
+// Repo name: alphanumerics, dot, underscore, hyphen — but never "." or ".."
+// (which would let a crafted URL traverse to other api.github.com endpoints).
+const REPO_RE = /^[A-Za-z0-9._-]{1,100}$/;
+
+function validateRepo(owner: string, repo: string): ParsedRepo {
+  if (!OWNER_RE.test(owner)) throw new Error(`Invalid GitHub owner: ${JSON.stringify(owner)}`);
+  if (!REPO_RE.test(repo) || repo === "." || repo === "..") {
+    throw new Error(`Invalid GitHub repo name: ${JSON.stringify(repo)}`);
+  }
+  return { owner, repo };
+}
+
 export function parseGitHubUrl(url: string): ParsedRepo {
   const trimmed = url.trim().replace(/\.git$/, "");
   const ssh = /^git@github\.com:([^/]+)\/(.+)$/.exec(trimmed);
-  if (ssh) return { owner: ssh[1]!, repo: ssh[2]! };
+  if (ssh) return validateRepo(ssh[1]!, ssh[2]!);
   const https = /^https?:\/\/github\.com\/([^/]+)\/([^/?#]+)/.exec(trimmed);
-  if (https) return { owner: https[1]!, repo: https[2]! };
+  if (https) return validateRepo(https[1]!, https[2]!);
   throw new Error(`Not a recognizable GitHub URL: ${url}`);
 }
 
@@ -88,19 +102,25 @@ async function ghJson<T>(url: string): Promise<T> {
   return (await res.json()) as T;
 }
 
+// owner/repo are validated by parseGitHubUrl; encode anyway so they can never
+// alter the request path. ref/sha come from GitHub's own API responses.
+const enc = encodeURIComponent;
+
 async function getDefaultBranch(owner: string, repo: string): Promise<string> {
-  const meta = await ghJson<RepoResponse>(`${GITHUB_API}/repos/${owner}/${repo}`);
+  const meta = await ghJson<RepoResponse>(`${GITHUB_API}/repos/${enc(owner)}/${enc(repo)}`);
   return meta.default_branch;
 }
 
 async function getTree(owner: string, repo: string, ref: string): Promise<TreeResponse> {
   return ghJson<TreeResponse>(
-    `${GITHUB_API}/repos/${owner}/${repo}/git/trees/${ref}?recursive=1`,
+    `${GITHUB_API}/repos/${enc(owner)}/${enc(repo)}/git/trees/${enc(ref)}?recursive=1`,
   );
 }
 
 async function getBlobContent(owner: string, repo: string, sha: string): Promise<string> {
-  const blob = await ghJson<BlobResponse>(`${GITHUB_API}/repos/${owner}/${repo}/git/blobs/${sha}`);
+  const blob = await ghJson<BlobResponse>(
+    `${GITHUB_API}/repos/${enc(owner)}/${enc(repo)}/git/blobs/${enc(sha)}`,
+  );
   if (blob.encoding === "base64") return Buffer.from(blob.content, "base64").toString("utf8");
   return blob.content;
 }

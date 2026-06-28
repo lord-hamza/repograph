@@ -56,7 +56,9 @@ interface PackageDeps {
 }
 
 function parsePackageJsonDeps(files: RawFile[]): PackageDeps {
-  const deps: Record<string, string> = {};
+  // null-prototype: a dependency literally named "__proto__"/"constructor"
+  // can't pollute the prototype chain or poison lookups.
+  const deps: Record<string, string> = Object.create(null);
   for (const f of files) {
     if (!f.path.endsWith("package.json")) continue;
     if (f.path.includes("node_modules/")) continue;
@@ -80,7 +82,7 @@ function parsePackageJsonDeps(files: RawFile[]): PackageDeps {
 }
 
 function parsePythonDeps(files: RawFile[]): PackageDeps {
-  const deps: Record<string, string> = {};
+  const deps: Record<string, string> = Object.create(null);
   for (const f of files) {
     if (f.path.endsWith("requirements.txt") || f.path.endsWith("requirements-dev.txt")) {
       for (const line of f.content.split(/\r?\n/)) {
@@ -146,7 +148,7 @@ export function detectTechStack(
 ): TechStackEntry[] {
   const { deps: npmDeps } = parsePackageJsonDeps(rawFiles);
   const { deps: pyDeps } = parsePythonDeps(rawFiles);
-  const allDeps: Record<string, string> = { ...npmDeps, ...pyDeps };
+  const allDeps: Record<string, string> = Object.assign(Object.create(null), npmDeps, pyDeps);
 
   const filesPerTech = new Map<string, Set<string>>();
   const techByFile = new Map<string, Set<string>>();

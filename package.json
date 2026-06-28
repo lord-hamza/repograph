@@ -16,7 +16,9 @@
     "typecheck": "turbo run typecheck",
     "clean": "turbo run clean && rm -rf node_modules .turbo",
     "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md,yml,yaml}\"",
-    "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,json,md,yml,yaml}\""
+    "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,json,md,yml,yaml}\"",
+    "audit": "pnpm audit --prod --audit-level high",
+    "audit:all": "pnpm audit --audit-level moderate"
   },
   "devDependencies": {
     "@types/node": "^22.10.0",

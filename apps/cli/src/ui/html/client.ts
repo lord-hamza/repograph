@@ -246,7 +246,7 @@ if (techStack.length === 0) {
   techEl.innerHTML = '<div class="legend-row" style="font-style:italic;">No tech detected</div>';
 } else {
   techEl.innerHTML = techStack.slice(0, 14).map((t) => {
-    const v = t.version ? ' · v' + String(t.version).replace(/^[\\^~>=<]+/, '') : '';
+    const v = t.version ? ' · v' + escapeHtml(String(t.version).replace(/^[\\^~>=<]+/, '')) : '';
     return '<div class="tech-row">' +
       '<span><span class="cat">' + escapeHtml(t.category) + '</span><span class="name">' + escapeHtml(t.name) + '</span></span>' +
       '<span class="meta">' + t.fileCount + ' file' + (t.fileCount === 1 ? '' : 's') + v + '</span>' +
@@ -779,7 +779,8 @@ function buildRoadmapView() {
       '<div class="rm-stage-chev">▾</div></div>';
     html += '<div class="rm-skills">';
     stage.skills.forEach((skill) => {
-      const doc = skill.doc ? '<div class="rm-skill-doc"><a href="' + escapeAttr(skill.doc) + '" target="_blank" rel="noopener">Open docs ↗</a></div>' : '';
+      const safeDoc = skill.doc && /^https?:\\/\\//i.test(skill.doc) ? skill.doc : null;
+      const doc = safeDoc ? '<div class="rm-skill-doc"><a href="' + escapeAttr(safeDoc) + '" target="_blank" rel="noopener noreferrer">Open docs ↗</a></div>' : '';
       html += '<div class="rm-skill" data-stage="' + escapeAttr(stage.id) + '" data-skill="' + escapeAttr(skill.name) + '">' +
         '<div class="rm-check">✓</div>' +
         '<div class="rm-skill-body">' +
