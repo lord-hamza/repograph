@@ -54,10 +54,36 @@ function authHeaders(): Record<string, string> {
   return headers;
 }
 
+const hasToken = (): boolean => !!(process.env["GITHUB_TOKEN"] ?? process.env["GH_TOKEN"]);
+
 async function ghJson<T>(url: string): Promise<T> {
-  const res = await fetch(url, { headers: authHeaders() });
+  let res: Response;
+  try {
+    res = await fetch(url, { headers: authHeaders() });
+  } catch (err) {
+    throw new Error(`Network error reaching GitHub (${url}): ${(err as Error).message}`);
+  }
   if (!res.ok) {
-    throw new Error(`GitHub API ${res.status} for ${url}: ${await res.text()}`);
+    const remaining = res.headers.get("x-ratelimit-remaining");
+    if (res.status === 404) {
+      throw new Error(
+        `GitHub repo or path not found (404). Check the URL is correct and public${
+          hasToken() ? "" : ", or set GITHUB_TOKEN for private repos"
+        }.`,
+      );
+    }
+    if (res.status === 403 && remaining === "0") {
+      throw new Error(
+        `GitHub API rate limit exceeded (403).${
+          hasToken() ? " Wait for the limit to reset." : " Set GITHUB_TOKEN/GH_TOKEN to raise the limit from 60 to 5000 requests/hour."
+        }`,
+      );
+    }
+    if (res.status === 401) {
+      throw new Error("GitHub authentication failed (401). Check that GITHUB_TOKEN/GH_TOKEN is valid.");
+    }
+    const body = (await res.text()).slice(0, 300);
+    throw new Error(`GitHub API ${res.status} for ${url}: ${body}`);
   }
   return (await res.json()) as T;
 }

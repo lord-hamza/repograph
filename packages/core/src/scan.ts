@@ -10,6 +10,8 @@ import { isGitHubUrl, parseGitHubUrl } from "./ingestion/github.js";
 import type { RawFile } from "./ingestion/types.js";
 import { parse } from "./parsers/index.js";
 import type { ParsedFile } from "./parsers/types.js";
+import { buildRoadmap } from "./roadmap/index.js";
+import type { Roadmap } from "./roadmap/types.js";
 
 export interface ScanOptions {
   commitSha?: string;
@@ -19,6 +21,7 @@ export interface ScanOptions {
 export interface ScanResult {
   graph: RepoGraph;
   techStack: TechStackEntry[];
+  roadmap: Roadmap;
   rawFiles: RawFile[];
   parsedFiles: ParsedFile[];
   toJson(): string;
@@ -44,13 +47,15 @@ export async function scan(target: string, options: ScanOptions = {}): Promise<S
   });
 
   const techStack = detectTechStack(graph, rawFiles, parsedFiles);
+  const roadmap = buildRoadmap(graph, techStack);
 
   return {
     graph,
     techStack,
+    roadmap,
     rawFiles,
     parsedFiles,
-    toJson: () => exportGraphJson(graph, techStack),
-    toMarkdown: () => exportGraphMarkdown(graph, techStack),
+    toJson: () => exportGraphJson(graph, techStack, roadmap),
+    toMarkdown: () => exportGraphMarkdown(graph, techStack, roadmap),
   };
 }

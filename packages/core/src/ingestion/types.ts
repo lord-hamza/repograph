@@ -20,15 +20,22 @@ export const EXCLUDED_DIRS = new Set([
   "venv",
 ]);
 
-const EXCLUDED_SUFFIXES = [".min.js", ".min.css", ".map"];
+const EXCLUDED_SUFFIXES = [".min.js", ".min.css", ".map", ".tsbuildinfo", ".lock"];
 
 const EXCLUDED_BASENAMES = new Set([
   "repograph-graph.html",
   "repograph-graph.json",
   "repograph-context.md",
+  ".DS_Store",
 ]);
 
+// Secret-bearing files never belong in a graph or an MCP context file we may
+// hand to an AI assistant. Matches `.env`, `.env.local`, `.env.production`, etc.
+const SECRET_FILE_RE = /^\.env(\..+)?$/;
+const SECRET_SUFFIXES = [".pem", ".key", ".p12", ".pfx"];
+
 export function isExcludedPath(relPath: string): boolean {
+  if (!relPath) return true;
   const segments = relPath.split("/");
   for (const segment of segments) {
     if (EXCLUDED_DIRS.has(segment)) return true;
@@ -36,8 +43,12 @@ export function isExcludedPath(relPath: string): boolean {
   for (const suffix of EXCLUDED_SUFFIXES) {
     if (relPath.endsWith(suffix)) return true;
   }
+  for (const suffix of SECRET_SUFFIXES) {
+    if (relPath.endsWith(suffix)) return true;
+  }
   const basename = segments[segments.length - 1] ?? relPath;
   if (EXCLUDED_BASENAMES.has(basename)) return true;
+  if (SECRET_FILE_RE.test(basename)) return true;
   return false;
 }
 

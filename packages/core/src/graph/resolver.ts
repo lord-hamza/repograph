@@ -93,7 +93,8 @@ function resolvePythonDotted(
   fileSet: Set<string>,
 ): string | null {
   if (source.startsWith(".")) {
-    const dots = /^\.+/.exec(source)![0].length;
+    const leadingDots = /^\.+/.exec(source);
+    const dots = leadingDots ? leadingDots[0].length : 0;
     const rest = source.slice(dots).replace(/\./g, "/");
     let dir = path.posix.dirname(fromFile);
     for (let i = 1; i < dots; i++) dir = path.posix.dirname(dir);

@@ -1,10 +1,11 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
+import { pathToFileURL } from "node:url";
 import chalk from "chalk";
 import open from "open";
 import type { ScanResult } from "@repograph/core";
 import type { CliOptions } from "../commands/options.js";
-import { renderGraphHtml } from "./html.js";
+import { renderGraphHtml } from "./html/index.js";
 
 export interface WrittenOutputs {
   jsonPath?: string;
@@ -62,6 +63,11 @@ export function printOutputs(written: WrittenOutputs): void {
   }
 }
 
-export async function openInBrowser(filePath: string): Promise<void> {
+export async function openInBrowser(filePath: string, hash?: string): Promise<void> {
+  if (hash) {
+    const url = pathToFileURL(filePath).href + (hash.startsWith("#") ? hash : `#${hash}`);
+    await open(url);
+    return;
+  }
   await open(filePath);
 }

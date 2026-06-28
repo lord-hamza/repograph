@@ -5,4 +5,5 @@ export * from "./parsers/index.js";
 export * from "./graph/index.js";
 export * from "./detectors/index.js";
 export * from "./exporters/index.js";
+export * from "./roadmap/index.js";
 export * from "./scan.js";

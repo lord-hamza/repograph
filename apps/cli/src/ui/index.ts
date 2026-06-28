@@ -5,4 +5,4 @@ export {
   writeOutputs,
   type WrittenOutputs,
 } from "./output.js";
-export { renderGraphHtml } from "./html.js";
+export { renderGraphHtml } from "./html/index.js";

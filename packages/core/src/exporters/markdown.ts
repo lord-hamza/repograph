@@ -1,5 +1,6 @@
 import type { TechStackEntry } from "../detectors/types.js";
 import type { GraphNode, RepoGraph } from "../graph/types.js";
+import type { Roadmap } from "../roadmap/types.js";
 
 function inferProjectKind(graph: RepoGraph, techStack: TechStackEntry[]): string {
   const techByName = new Map(techStack.map((t) => [t.name, t]));
@@ -291,6 +292,20 @@ function entryPointsSection(graph: RepoGraph): string {
     .join("\n");
 }
 
+function roadmapSection(roadmap: Roadmap | undefined): string {
+  if (!roadmap || roadmap.stages.length === 0) return "_no roadmap generated_";
+  const blocks: string[] = [`_${roadmap.summary}_`, ""];
+  roadmap.stages.forEach((stage, i) => {
+    blocks.push(`### ${i + 1}. ${stage.title}`, `_${stage.subtitle}_`, "");
+    for (const skill of stage.skills) {
+      const link = skill.doc ? ` — [docs](${skill.doc})` : "";
+      blocks.push(`- **${escapePipes(skill.name)}** (${skill.level})${link}  `, `  ${skill.why}`);
+    }
+    blocks.push("");
+  });
+  return blocks.join("\n").trimEnd();
+}
+
 function titleFor(meta: RepoGraph["metadata"]): string {
   if (meta.owner && meta.name) return `${meta.owner}/${meta.name}`;
   const trimmed = meta.target.replace(/\/+$/, "");
@@ -298,7 +313,11 @@ function titleFor(meta: RepoGraph["metadata"]): string {
   return basename && basename.length > 0 ? basename : meta.target;
 }
 
-export function exportGraphMarkdown(graph: RepoGraph, techStack: TechStackEntry[]): string {
+export function exportGraphMarkdown(
+  graph: RepoGraph,
+  techStack: TechStackEntry[],
+  roadmap?: Roadmap,
+): string {
   const meta = graph.metadata;
   const repoName = titleFor(meta);
   const fileNodes = graph.nodes.filter((n) => n.type === "file");
@@ -359,6 +378,12 @@ export function exportGraphMarkdown(graph: RepoGraph, techStack: TechStackEntry[
     "## Circular Dependencies",
     "",
     circularDeps(graph),
+    "",
+    "## Learning Roadmap",
+    "",
+    "_How to become a developer who could build something like this. Generated from the detected tech stack and structure._",
+    "",
+    roadmapSection(roadmap),
     "",
   ].join("\n");
 }

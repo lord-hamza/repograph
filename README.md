@@ -1,100 +1,59 @@
 # RepoGraph
 
-Turn any repository into an **interactive dependency graph** and a **structured MCP context file** — one CLI command, three output files, zero config.
+Turn any repository into an **interactive code atlas**, a **learning roadmap**, and a **structured MCP context file** — one CLI command, zero config.
 
-RepoGraph parses your codebase, resolves every import, builds a node-and-edge graph of files / functions / classes, detects the tech stack, and emits:
+RepoGraph parses your codebase, resolves every import, builds a node-and-edge graph of files / functions / classes, detects the tech stack, derives a "how to learn to build this" roadmap, and emits three outputs:
 
 | Output | Purpose |
 | --- | --- |
-| `repograph-graph.html` | Self-contained D3 visualization — interactive, hoverable, multicolor. Open it in any browser. |
-| `repograph-graph.json` | Raw graph data (D3-friendly `nodes` + `links`). Drop into your own tooling. |
-| `repograph-context.md` | MCP-compatible structural summary for AI assistants (Claude Code, Cursor, Continue, or any MCP client). |
+| `repograph-graph.html` | Self-contained interactive page with **five views** — Globe, Map, Web, Brain, Roadmap. Opens in any browser, no server. |
+| `repograph-graph.json` | Raw graph data: D3-friendly `{ metadata, nodes, links }` (the roadmap is embedded in `metadata.roadmap`). |
+| `repograph-context.md` | MCP-compatible structural summary for AI assistants (Claude Code, Cursor, Continue, or any MCP client), including a Learning Roadmap section. |
 
 ```bash
-npx @repograph/cli pull .
-npx @repograph/cli pull https://github.com/expressjs/express
-npx @repograph/cli pull . --open
+npm i -g @repograph/cli
+
+repograph pull .                                   # scan the current repo
+repograph pull https://github.com/expressjs/express
+repograph pull . --open                            # open the interactive graph
+repograph roadmap .                                # open the Learning Roadmap
+repograph brain .                                  # open the 3D Brain view
 ```
+
+> No install? Use `npx @repograph/cli pull <target>`.
+
+---
+
+## The five views
+
+Open `repograph-graph.html` and switch views from the toggle at the top:
+
+| View | What it shows |
+| --- | --- |
+| 🌐 **Globe** | Nodes pinned to a wireframe sphere, clustered by module. Best for an at-a-glance overview. |
+| ▦ **Map** | A flat 2D layout (pan + zoom) with modules arranged in a ring. Best for precise navigation. |
+| 🕸 **Web** | A 3D force-directed "spider web" — hubs pulled to the center, leaves to the rim, edges as threads. Best for seeing real coupling. |
+| 🧠 **Brain** | The repo as a neural network: modules split into two glowing hemispheres with synapse-like links. |
+| 🗺 **Roadmap** | An interactive skill tree: *what to learn, in order, to build something like this repo* — with progress saved in your browser. |
+
+Every graph view supports hover-to-preview, click-to-open a detail panel (with cascade navigation through imports/importers), live search, drag to rotate/pan, and scroll to zoom.
 
 ---
 
 ## Why
 
-Large codebases are opaque by default. A new contributor — human or AI — has no idea what depends on what. RepoGraph makes the structure visible in seconds:
+Large codebases are opaque by default. RepoGraph makes the structure visible in seconds:
 
-- **For developers:** see entry points, find the most-imported files (your "load-bearing" code), spot circular dependencies and orphans.
-- **For AI coding assistants:** the MCP context file gives the model a complete architectural map before it reads a single source line. Better refactors, more accurate impact analysis, less wandering.
-- **For code review:** see exactly what changes when a PR adds or removes an import edge.
-
----
-
-## What's in this repo
-
-It's a pnpm + Turborepo monorepo with two packages:
-
-```
-repograph/
-├── packages/
-│   └── core/           @repograph/core — engine: ingest, parse, graph, detect, export
-└── apps/
-    └── cli/            @repograph/cli — `repograph` binary on top of the engine
-```
-
-The engine has no UI dependencies. The CLI is a thin shell around `scan()`. The same engine will back the future web platform and GitHub Action.
-
-### Engine layout — `packages/core/src/`
-
-| Module | What it does |
-| --- | --- |
-| `ingestion/` | Two input modes: GitHub URL (REST `git/trees?recursive=1` + batched blob fetches) and local filesystem (recursive walk, skips symlinks + binaries). Normalizes both to `RawFile[]`. |
-| `parsers/` | Python via `tree-sitter` + `tree-sitter-python`. TypeScript / JavaScript / TSX / JSX via the TypeScript Compiler API. Routes by file extension; unknown languages produce empty parses. |
-| `graph/` | Resolves relative paths, tsconfig `paths`/`baseUrl` aliases, NodeNext `.js`→`.ts` rewrites, Python dotted modules and relative `from .x` imports. Builds a graphology multigraph, computes in/out degrees, finds entry points + orphans, runs Tarjan's SCC for cycle detection. |
-| `detectors/` | 37 known tech signatures (React, Next, Express, NestJS, FastAPI, Django, Flask, Prisma, Drizzle, Mongoose, SQLAlchemy, Postgres, Redis, Mongo, Clerk, NextAuth, Jest, Vitest, Pytest, Playwright, Webpack, Vite, Tailwind, TypeScript, D3, BullMQ, …). Combines `package.json` / `requirements.txt` / `pyproject.toml` deps + import frequency + config-file presence. Computes a confidence score; cuts off at 0.5. |
-| `exporters/` | JSON exporter emits D3-shaped `{ nodes, links }`. Markdown exporter emits an MCP-ready context document: scan metadata → architecture → directory tree → tech stack table → module map → top-10 most-imported → circular dependencies. |
-| `scan.ts` | Single high-level `scan(target)` that runs the whole pipeline. Returns `{ graph, techStack, rawFiles, parsedFiles, toJson(), toMarkdown() }`. |
-
-### CLI — `apps/cli/src/`
-
-| Module | What it does |
-| --- | --- |
-| `commands/pull.ts` | `repograph pull <target>` — the only command. Validates target, runs `scan()`, hands off to UI. |
-| `commands/options.ts` | `--output <dir>`, `--format json\|md\|both`, `--open`, `-v/--verbose`. |
-| `ui/stats.ts` | `cli-table3` + `chalk` terminal stats: summary, language breakdown, tech list, top-imported files, circular dependencies. Color-coded green / yellow / red. |
-| `ui/output.ts` | Writes the three output files. Optionally opens the HTML in your browser via `open`. |
-| `ui/html.ts` | The self-contained D3 v7 page. Force-directed simulation, hover-to-focus, click-to-pin, drag, zoom, multicolor by module or by type, live search filter. |
+- **For developers** — see entry points, the most-imported "load-bearing" files, circular dependencies, and orphans.
+- **For learners** — the Roadmap turns a repo into a personalized syllabus: language → tooling → frameworks → data → testing → architecture → shipping, each step linked to canonical docs and explained *for this repo*.
+- **For AI coding assistants** — the MCP context file hands the model a complete architectural map (now including the roadmap) before it reads a single source line.
 
 ---
 
-## Install
-
-Requires **Node 22**. (Node 24 currently fails to compile the native `tree-sitter` binding — see `.nvmrc` and `engines` in `package.json`.)
-
-```bash
-# Once published
-npm i -g @repograph/cli
-repograph pull .
-
-# Or zero-install
-npx @repograph/cli pull <target>
-```
-
-### From source (this repo)
-
-```bash
-git clone https://github.com/lord-hamza/repograph.git
-cd repograph
-nvm use            # respects .nvmrc → Node 22
-pnpm install
-pnpm build
-node apps/cli/dist/index.js pull .
-```
-
----
-
-## Usage
+## Commands
 
 ```
-repograph pull <target> [options]
+repograph <command> <target> [options]
 
 Targets
   .                               current directory
@@ -102,50 +61,124 @@ Targets
   https://github.com/owner/repo   any public GitHub repo (HTTPS)
   git@github.com:owner/repo.git   any public GitHub repo (SSH)
 
+Commands
+  pull <target>          Scan and write graph + JSON + MCP outputs.
+  roadmap <target>       Scan and open the interactive Learning Roadmap (alias: learn).
+  brain <target>         Scan and open the 3D Brain view.
+
 Options
-  -o, --output <dir>     Output directory (default: cwd)
+  -o, --output <dir>     Output directory (default: current directory)
   -f, --format <fmt>     json | md | both (default: both)
-      --open             Open the HTML graph in the default browser
+      --open             (pull) open the HTML graph in the browser
+      --no-open          (roadmap/brain) write files without opening the browser
   -v, --verbose          Verbose error logging
+  -V, --version          Print version
+  -h, --help             Show help
 ```
 
-Set `GITHUB_TOKEN` (or `GH_TOKEN`) in your environment to lift the unauthenticated GitHub API rate limit (60/hr → 5000/hr).
+`roadmap`, `learn`, and `brain` open the browser by default, deep-linked to the right tab (the HTML reads `#roadmap` / `#brain` / `#web` from the URL).
+
+Set `GITHUB_TOKEN` (or `GH_TOKEN`) to lift the unauthenticated GitHub API rate limit (60/hr → 5000/hr) and to scan private repos you can access.
 
 ---
 
 ## Loading the MCP context into AI tools
 
-The generated `repograph-context.md` is a plain Markdown file with a stable, dense structure. Load it as project context in any MCP-aware client:
+`repograph-context.md` is plain Markdown with a stable, dense structure. Load it as project context:
 
 - **Claude Code:** `claude /add-dir ./repograph-context.md`
 - **Cursor:** add the file to your project's context resources
 - **Continue / Aider / Cody / others:** include via system prompt or MCP server config
 
-The file is human-readable; you can also just paste it into a chat if your client doesn't support MCP yet.
+It's human-readable too — you can paste it into any chat.
+
+---
+
+## Install
+
+Requires **Node 22** (see `.nvmrc` / `engines`).
+
+```bash
+# Global
+npm i -g @repograph/cli
+repograph pull .
+
+# Zero-install
+npx @repograph/cli pull <target>
+```
+
+### From source
+
+```bash
+git clone https://github.com/lord-hamza/repograph.git
+cd repograph
+nvm use            # → Node 22
+pnpm install
+pnpm build
+node apps/cli/dist/index.js pull .
+```
+
+---
+
+## How it works
+
+A pnpm + Turborepo monorepo with two packages:
+
+```
+repograph/
+├── packages/core/   @repograph/core — engine: ingest → parse → graph → detect → roadmap → export
+└── apps/cli/        @repograph/cli  — the `repograph` binary on top of the engine
+```
+
+| Layer | What it does |
+| --- | --- |
+| `ingestion/` | GitHub REST (`git/trees?recursive=1` + batched blobs) or local FS walk → `RawFile[]`. Skips vendored dirs, binaries, large files, and secrets (`.env*`, keys). |
+| `parsers/` | TypeScript/JS/TSX/JSX via the TypeScript Compiler API; Python via `tree-sitter`. |
+| `graph/` | Resolves relative paths, tsconfig aliases, NodeNext `.js`→`.ts`, Python dotted imports. Builds a graphology multigraph; finds entry points, orphans, and cycles (Tarjan SCC). |
+| `detectors/` | ~37 tech signatures (React, Next, Express, FastAPI, Prisma, Drizzle, Vitest, …) from deps + imports + config files, with a confidence score. |
+| `roadmap/` | Deterministic learning roadmap from the detected stack + graph shape — no network, no LLM. |
+| `exporters/` | D3-shaped JSON + MCP-ready Markdown. |
+| `ui/html/` | The self-contained five-view page (Three.js via CDN import map). |
+
+---
+
+## Development
+
+```bash
+pnpm build        # tsc per package (turbo)
+pnpm test         # vitest per package (turbo)
+pnpm typecheck
+pnpm lint
+pnpm format
+```
+
+Tests cover the engine end-to-end plus a headless DOM smoke test that boots the real browser app across all five views.
 
 ---
 
 ## Tech stack
 
-- **TypeScript 5.7** (strict, NodeNext modules, project references via `composite: true`)
+- **TypeScript 5.7** (strict, NodeNext, project references)
 - **tree-sitter** + **tree-sitter-python** — Python parsing
 - **TypeScript Compiler API** — JS/TS/JSX/TSX parsing
 - **graphology** — graph data structure + algorithms
-- **D3 v7** — graph visualization (CDN, no bundle bloat)
-- **commander · ora · chalk · cli-table3 · open** — CLI shell
-- **Turborepo · pnpm** — monorepo orchestration
+- **Three.js** — 3D Globe / Web / Brain rendering (CDN, no bundle)
+- **commander · ora · chalk · cli-table3 · open** — CLI
+- **Turborepo · pnpm · Vitest** — monorepo + tests
 
 ---
 
-## Roadmap
+## Project roadmap
 
-- [x] Engine + CLI (this milestone)
-- [ ] Web platform (`repograph.com/[owner]/[repo]`) — same engine behind Next.js
-- [ ] BullMQ async worker for large remote scans
-- [ ] GitHub Action — auto-generate the graph on every push
+- [x] Engine + CLI
+- [x] Interactive HTML — Globe, Map, **Web**, **Brain**
+- [x] Learning **Roadmap** (deterministic, terminal-accessible)
 - [ ] More language parsers (Go, Rust, Ruby, Java)
-- [ ] `--watch` mode for local dev
-- [ ] `--diff <sha>` to show dependency changes between commits
+- [ ] `--watch` (local) and `--diff <sha>` (dependency changes between commits)
+- [ ] Optional `--ai` roadmap enrichment
+- [ ] Web platform + GitHub Action
+
+See [PUBLISHING.md](PUBLISHING.md) to publish to GitHub + npm.
 
 ---
 

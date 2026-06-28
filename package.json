@@ -21,8 +21,11 @@
   "devDependencies": {
     "@types/node": "^22.10.0",
     "eslint": "^9.18.0",
+    "jsdom": "^29.1.1",
     "prettier": "^3.4.0",
     "turbo": "^2.3.0",
-    "typescript": "^5.7.0"
+    "typescript": "^5.7.0",
+    "typescript-eslint": "^8.62.0",
+    "vitest": "^4.1.9"
   }
 }

@@ -2,14 +2,16 @@
 import { Command } from "commander";
 import { VERSION } from "@repograph/core";
 import { registerPullCommand } from "./commands/pull.js";
+import { registerRoadmapCommand } from "./commands/roadmap.js";
 
 const program = new Command()
   .name("repograph")
-  .description("Scan a repo, generate a dependency graph and MCP context file.")
+  .description("Scan a repo: interactive dependency graph (globe/map/web/brain), learning roadmap, and MCP context.")
   .version(VERSION)
   .showHelpAfterError();
 
 registerPullCommand(program);
+registerRoadmapCommand(program);
 
 if (process.argv.length <= 2) {
   program.outputHelp();

@@ -1,5 +1,6 @@
 import type { TechStackEntry } from "../detectors/types.js";
 import type { RepoGraph } from "../graph/types.js";
+import type { Roadmap } from "../roadmap/types.js";
 
 export interface ExportedGraph {
   metadata: {
@@ -9,6 +10,7 @@ export interface ExportedGraph {
     entryPoints: string[];
     orphanFiles: string[];
     circularDependencies: string[][];
+    roadmap?: Roadmap;
   };
   nodes: RepoGraph["nodes"];
   links: Array<{
@@ -19,7 +21,11 @@ export interface ExportedGraph {
   }>;
 }
 
-export function exportGraphJson(graph: RepoGraph, techStack: TechStackEntry[]): string {
+export function exportGraphJson(
+  graph: RepoGraph,
+  techStack: TechStackEntry[],
+  roadmap?: Roadmap,
+): string {
   const payload: ExportedGraph = {
     metadata: {
       repo: graph.metadata,
@@ -28,6 +34,7 @@ export function exportGraphJson(graph: RepoGraph, techStack: TechStackEntry[]): 
       entryPoints: graph.entryPoints,
       orphanFiles: graph.orphanFiles,
       circularDependencies: graph.circularDependencies,
+      ...(roadmap ? { roadmap } : {}),
     },
     nodes: graph.nodes,
     links: graph.edges.map((e) => ({

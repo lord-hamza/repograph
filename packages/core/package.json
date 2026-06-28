@@ -26,8 +26,9 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "dev": "tsc -p tsconfig.json --watch",
-    "lint": "eslint src --ext .ts",
-    "test": "echo \"(no tests yet)\" && exit 0",
+    "lint": "eslint src",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "clean": "rm -rf dist .turbo *.tsbuildinfo",
     "prepublishOnly": "pnpm run clean && pnpm run build"

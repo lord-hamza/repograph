@@ -61,7 +61,12 @@ async function walk(root: string, current: string, out: RawFile[]): Promise<void
 
 export async function ingestLocal(target: string): Promise<RawFile[]> {
   const root = path.resolve(target);
-  const stat = await fs.stat(root);
+  let stat: import("node:fs").Stats;
+  try {
+    stat = await fs.stat(root);
+  } catch {
+    throw new Error(`Local path does not exist or is not accessible: ${root}`);
+  }
   if (!stat.isDirectory()) {
     throw new Error(`Local ingestion target is not a directory: ${root}`);
   }
